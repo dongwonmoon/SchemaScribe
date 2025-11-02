@@ -1,0 +1,47 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "data-scribe"
+version = "0.1.0"
+description = "AI-powered data documentation generator for databases and dbt projects."
+readme = "README.md"
+authors = [
+    { name = "DongWon Moon", email = "ansehddnjs187@gmail.com" },
+]
+
+requires-python = ">=3.9"
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Topic :: Database",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+    "Topic :: Software Development :: Documentation",
+    "Framework :: Typer",
+]
+
+dependencies = [
+    "typer",
+    "openai",
+    "python-dotenv",
+    "PyYAML",
+    "ruamel.yaml",
+]
+
+[project.optional-dependencies]
+postgres = ["psycopg2-binary"]
+google = ["google-generativeai"]
+
+all = [
+    "data-scribe[postgres]",
+    "data-scribe[google]",
+]
+
+[tool.setuptools.packages.find]
+include = ["data_scribe*"]
+exclude = ["jaffle_shop*"]
+
+[project.scripts]
+data-scribe = "data_scribe.main:app"
