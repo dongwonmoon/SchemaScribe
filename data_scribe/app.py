@@ -13,7 +13,7 @@ import functools
 from data_scribe.core.factory import get_db_connector, get_llm_client
 from data_scribe.core.catalog_generator import CatalogGenerator
 from data_scribe.core.dbt_catalog_generator import DbtCatalogGenerator
-from data_scribe.utils.writers import MarkdownWriter, DbtMarkdownWriter
+from data_scribe.utils.writers import MarkdownWriter, DbtMarkdownWriter, DbtYamlWriter
 from data_scribe.utils.utils import load_config
 from data_scribe.utils.logger import get_logger
 
@@ -176,6 +176,11 @@ def scan_dbt(
     output_filename: str = typer.Option(
         "dbt_catalog.md", "--output", help="The name of the output file."
     ),
+    update_yaml: bool = typer.Option(
+        False,
+        "--update-yaml",
+        help="Update the dbt schema.yml file directly with the AI description.",
+    ),
 ):
     """
     Scans a dbt project, generates a data catalog using an LLM, and writes it to a Markdown file.
@@ -190,6 +195,12 @@ def scan_dbt(
     logger.info("Generating dbt catalog...")
     # Create a DbtCatalogGenerator and generate the catalog
     catalog = DbtCatalogGenerator(llm_client).generate_catalog(dbt_project_dir)
-    # Write the generated catalog to a Markdown file
-    DbtMarkdownWriter().write(catalog, output_filename, dbt_project_dir)
-    logger.info(f"DBT catalog written to '{output_filename}'.")
+
+    if update_yaml:
+        logger.info("Starting dbt schema.yml update process...")
+        DbtYamlWriter(dbt_project_dir).update_yaml_files(catalog)
+        logger.info("dbt schema.yml update complete.")
+    else:
+        # Write the generated catalog to a Markdown file
+        DbtMarkdownWriter().write(catalog, output_filename, dbt_project_dir)
+        logger.info(f"DBT catalog written to '{output_filename}'.")

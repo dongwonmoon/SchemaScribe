@@ -6,6 +6,10 @@ for catalogs generated from dbt projects. Both writers produce Markdown files.
 """
 
 from typing import Dict, List, Any
+import os
+from ruamel.yaml import YAML
+from ruamel.yaml.comments import CommentedMap
+
 from data_scribe.utils.logger import get_logger
 
 # Initialize a logger for this module
@@ -43,9 +47,7 @@ class MarkdownWriter:
                 for table_name, columns in catalog_data.items():
                     f.write(f"\n## 📄 Table: `{table_name}`\n\n")
                     # Write the header of the column table
-                    f.write(
-                        "| Column Name | Data Type | AI-Generated Description |\n"
-                    )
+                    f.write("| Column Name | Data Type | AI-Generated Description |\n")
                     f.write("| :--- | :--- | :--- |\n")
 
                     # Write a row for each column
@@ -53,9 +55,7 @@ class MarkdownWriter:
                         col_name = column["name"]
                         col_type = column["type"]
                         description = column["description"]
-                        f.write(
-                            f"| `{col_name}` | `{col_type}` | {description} |\n"
-                        )
+                        f.write(f"| `{col_name}` | `{col_type}` | {description} |\n")
             logger.info("Finished writing catalog file.")
         except IOError as e:
             logger.error(
@@ -104,9 +104,7 @@ class DbtMarkdownWriter:
 
                     # Write the header for the column details table
                     f.write("### Column Details\n")
-                    f.write(
-                        "| Column Name | Data Type | AI-Generated Description |\n"
-                    )
+                    f.write("| Column Name | Data Type | AI-Generated Description |\n")
                     f.write("| :--- | :--- | :--- |\n")
 
                     columns = model_data.get("columns", [])
@@ -119,9 +117,7 @@ class DbtMarkdownWriter:
                         col_name = column["name"]
                         col_type = column["type"]
                         description = column["description"]
-                        f.write(
-                            f"| `{col_name}` | `{col_type}` | {description} |\n"
-                        )
+                        f.write(f"| `{col_name}` | `{col_type}` | {description} |\n")
 
             logger.info("Finished writing dbt catalog file.")
         except IOError as e:
@@ -130,3 +126,103 @@ class DbtMarkdownWriter:
             )
             # Re-raise the exception to be handled by the CLI
             raise
+
+
+class DbtYamlWriter:
+    """
+    Handles reading dbt schema.yml files, updating them
+    with AI-generated descriptions, and writing them back
+    while preserving comments and formatting.
+    """
+
+    def __init__(self, dbt_project_dir: str):
+        self.dbt_project_dir = dbt_project_dir
+        self.yaml = YAML()
+        self.yaml.preserve_quotes = True
+        self.yaml.indent(mapping=2, sequence=4, offset=2)
+        logger.info("DbtYamlWriter initialized.")
+
+    def find_schema_files(self) -> List[str]:
+        """Finds all 'schema.yml' (or '.yml') files in the dbt 'models' directories."""
+        model_path = os.path.join(self.dbt_project_dir, "models")
+        schema_files = []
+        for root, _, files in os.walk(model_path):
+            for file in files:
+                if file.endswith((".yml", ".yaml")):
+                    if "schema" in file or "sources" in file:
+                        schema_files.append(os.path.join(root, file))
+
+        logger.info(f"Found schema files to check: {schema_files}")
+        return schema_files
+
+    def update_yaml_files(self, catalog_data: Dict[str, Any]):
+        """
+        Finds and updates all relevant schema.yml files with the catalog data.
+        """
+        schema_files = self.find_schema_files()
+        if not schema_files:
+            logger.warning("No schema.yml files found in 'models' directories.")
+            return
+
+        for file_path in schema_files:
+            try:
+                self._update_single_file(file_path, catalog_data)
+            except Exception as e:
+                logger.error(f"Error processing {file_path}: {e}", exc_info=True)
+
+    def _update_single_file(self, file_path: str, catalog_data: Dict[str, Any]):
+        """Updates a single schema.yml file."""
+        with open(file_path, "r", encoding="utf-8") as f:
+            data = self.yaml.load(f)
+
+        if not data:
+            logger.info(f"Skipping empty YAML file: {file_path}")
+            return
+
+        models = data.get("models", [])
+        if not models:
+            logger.info(f"No models found in YAML file: {file_path}")
+            return
+
+        logger.info(f"Checking '{file_path}' for models to update...")
+        file_updated = False
+
+        for model_config in models:
+            model_name = model_config.get("name")
+
+            if model_name in catalog_data:
+                logger.info(f"  -> Found model '{model_name}' in YAML.")
+                ai_model_data = catalog_data[model_name]
+
+                if "columns" in model_config:
+                    for column_config in model_config["columns"]:
+                        column_name = column_config.get("name")
+
+                        ai_column = next(
+                            (
+                                c
+                                for c in ai_model_data["columns"]
+                                if c["name"] == column_name
+                            ),
+                            None,
+                        )
+
+                        if ai_column:
+                            if not column_config.get("description"):
+                                logger.info(
+                                    f"    - Updating description for column '{column_name}'"
+                                )
+                                column_config["description"] = ai_column["description"]
+                                file_updated = True
+
+        if file_updated:
+            try:
+                with open(file_path, "w", encoding="utf-8") as f:
+                    self.yaml.dump(data, f)
+                logger.info(f"Successfully updated '{file_path}' with AI descriptions.")
+            except Exception as e:
+                logger.error(f"Failed to write updates to '{file_path}': {e}")
+        else:
+            logger.info(
+                f"No missing descriptions found in '{file_path}'. No changes made."
+            )
