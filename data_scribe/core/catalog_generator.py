@@ -1,16 +1,23 @@
+"""
+This module contains the core logic for generating a data catalog from a database.
+
+It defines the CatalogGenerator class, which orchestrates the process of connecting to a database,
+fetching schema information, and using an LLM to generate descriptions for each column.
+"""
+
 from typing import List, Dict, Any
 
 from data_scribe.core.interfaces import BaseConnector, BaseLLMClient
 from data_scribe.prompts import COLUMN_DESCRIPTION_PROMPT
 from data_scribe.utils.logger import get_logger
 
-# Initialize logger
+# Initialize a logger for this module
 logger = get_logger(__name__)
 
 
 class CatalogGenerator:
     """
-    Handles the core logic of generating a data catalog.
+    Handles the core logic of generating a data catalog from a database.
 
     This class orchestrates the process of scanning a database schema,
     fetching table and column information, and using an LLM to generate
@@ -36,7 +43,7 @@ class CatalogGenerator:
         and enriching it with descriptions from an LLM.
 
         Args:
-            db_profile_name: The name of the database profile being used.
+            db_profile_name: The name of the database profile being used, for logging purposes.
 
         Returns:
             A dictionary representing the data catalog. The keys are table names,
@@ -45,14 +52,18 @@ class CatalogGenerator:
         """
         catalog_data = {}
         logger.info(f"Fetching tables for database profile: {db_profile_name}")
+        # Retrieve the list of table names from the database
         tables = self.db_connector.get_tables()
         logger.info(f"Found {len(tables)} tables: {tables}")
 
+        # Iterate over each table to process its columns
         for table_name in tables:
             logger.info(f"Processing table: {table_name}")
+            # Get the list of columns for the current table
             columns = self.db_connector.get_columns(table_name)
             enriched_columns = []
 
+            # For each column, generate a description using the LLM
             for column in columns:
                 col_name = column["name"]
                 col_type = column["type"]
@@ -60,16 +71,17 @@ class CatalogGenerator:
                     f"  - Generating description for column: {col_name} ({col_type})"
                 )
 
-                # Format the prompt for the LLM
+                # Format the prompt with table and column details
                 prompt = COLUMN_DESCRIPTION_PROMPT.format(
                     table_name=table_name, col_name=col_name, col_type=col_type
                 )
 
-                # Get the column description from the LLM
+                # Get the column description from the LLM client
                 description = self.llm_client.get_description(
                     prompt, max_tokens=50
                 )
 
+                # Append the enriched column data to the list
                 enriched_columns.append(
                     {
                         "name": col_name,
@@ -77,6 +89,7 @@ class CatalogGenerator:
                         "description": description,
                     }
                 )
+            # Add the table and its enriched columns to the catalog
             catalog_data[table_name] = enriched_columns
             logger.info(f"Finished processing table: {table_name}")
 

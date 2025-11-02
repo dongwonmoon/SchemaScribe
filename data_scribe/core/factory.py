@@ -1,3 +1,12 @@
+"""
+This module implements the factory pattern for creating database connectors and LLM clients.
+
+The factory functions (`get_db_connector` and `get_llm_client`) use registries
+to look up and instantiate the correct class based on a string identifier.
+This allows for an extensible architecture where new components can be added by simply
+registering them.
+"""
+
 from typing import Dict, Type, Any
 
 from data_scribe.core.interfaces import BaseConnector, BaseLLMClient
@@ -7,17 +16,19 @@ from data_scribe.components.db_connectors.sqlite_connector import (
 from data_scribe.components.llm_clients.openai_client import OpenAIClient
 from data_scribe.utils.logger import get_logger
 
-# Initialize logger
+# Initialize a logger for this module
 logger = get_logger(__name__)
 
-# Registry for database connectors
-# Maps a string identifier to a connector class.
+# Registry for database connectors.
+# This dictionary maps a string identifier (e.g., "sqlite") to a connector class.
+# To add a new connector, import it and add it to this registry.
 DB_CONNECTOR_REGISTRY: Dict[str, Type[BaseConnector]] = {
     "sqlite": SQLiteConnector,
 }
 
-# Registry for LLM clients
-# Maps a string identifier to a client class.
+# Registry for LLM clients.
+# This dictionary maps a string identifier (e.g., "openai") to a client class.
+# To add a new client, import it and add it to this registry.
 LLM_CLIENT_REGISTRY: Dict[str, Type[BaseLLMClient]] = {
     "openai": OpenAIClient,
 }
@@ -28,7 +39,7 @@ def get_db_connector(type_name: str, params: Dict[str, Any]) -> BaseConnector:
     Instantiates a database connector based on the provided type name.
 
     This factory function looks up the connector class in the DB_CONNECTOR_REGISTRY
-    and returns an initialized instance.
+    and returns an initialized and connected instance.
 
     Args:
         type_name: The type of the database connector to create (e.g., 'sqlite').
@@ -38,9 +49,10 @@ def get_db_connector(type_name: str, params: Dict[str, Any]) -> BaseConnector:
         An instance of a class that implements the BaseConnector interface.
 
     Raises:
-        ValueError: If the specified connector type is not supported.
+        ValueError: If the specified connector type is not found in the registry.
     """
     logger.info(f"Looking up database connector for type: {type_name}")
+    # Look up the connector class in the registry
     connector_class = DB_CONNECTOR_REGISTRY.get(type_name)
 
     if not connector_class:
@@ -48,7 +60,9 @@ def get_db_connector(type_name: str, params: Dict[str, Any]) -> BaseConnector:
         raise ValueError(f"Unsupported database connector type: {type_name}")
 
     logger.info(f"Instantiating {connector_class.__name__}...")
+    # Create an instance of the connector
     connector = connector_class()
+    # Establish the connection using the provided parameters
     connector.connect(params)
     return connector
 
@@ -68,9 +82,10 @@ def get_llm_client(provider_name: str, params: Dict[str, Any]) -> BaseLLMClient:
         An instance of a class that implements the BaseLLMClient interface.
 
     Raises:
-        ValueError: If the specified LLM provider is not supported.
+        ValueError: If the specified LLM provider is not found in the registry.
     """
     logger.info(f"Looking up LLM client for provider: {provider_name}")
+    # Look up the client class in the registry
     client_class = LLM_CLIENT_REGISTRY.get(provider_name)
 
     if not client_class:
@@ -78,4 +93,5 @@ def get_llm_client(provider_name: str, params: Dict[str, Any]) -> BaseLLMClient:
         raise ValueError(f"Unsupported LLM provider: {provider_name}")
 
     logger.info(f"Instantiating {client_class.__name__}...")
+    # Create an instance of the client, passing the parameters to its constructor
     return client_class(**params)
