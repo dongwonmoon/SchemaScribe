@@ -15,7 +15,11 @@ from data_scribe.components.db_connectors import (
     PostgresConnector,
     MariaDBConnector,
 )
-from data_scribe.components.llm_clients import OpenAIClient, OllamaClient
+from data_scribe.components.llm_clients import (
+    OpenAIClient,
+    OllamaClient,
+    GoogleGenAIClient,
+)
 from data_scribe.utils.logger import get_logger
 
 # Initialize a logger for this module
@@ -37,6 +41,7 @@ DB_CONNECTOR_REGISTRY: Dict[str, Type[BaseConnector]] = {
 LLM_CLIENT_REGISTRY: Dict[str, Type[BaseLLMClient]] = {
     "openai": OpenAIClient,
     "ollama": OllamaClient,
+    "google": GoogleGenAIClient,
 }
 
 
