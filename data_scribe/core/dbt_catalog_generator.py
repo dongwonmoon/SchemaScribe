@@ -22,9 +22,7 @@ logger = get_logger(__name__)
 
 
 class DbtCatalogGenerator:
-    """
-    Parses a dbt manifest and uses an LLM to generate documentation for dbt models and columns.
-    """
+    """Parses a dbt manifest and uses an LLM to generate documentation for dbt models and columns, including lineage information."""
 
     def __init__(self, llm_client: BaseLLMClient):
         """
@@ -42,13 +40,14 @@ class DbtCatalogGenerator:
         Orchestrates the generation of a dbt data catalog.
 
         This method involves parsing the dbt manifest, iterating through the models,
-        and generating AI-based descriptions for both the models and their columns.
+        and generating AI-based descriptions for models, columns, and model lineage.
 
         Args:
             dbt_project_dir: The root directory of the dbt project.
 
         Returns:
             A dictionary representing the data catalog, with model names as keys.
+            Each model includes a description, a Mermaid lineage chart, and a list of columns.
         """
         logger.info(f"dbt catalog generation started for {dbt_project_dir}")
         # Initialize the manifest parser with the project directory

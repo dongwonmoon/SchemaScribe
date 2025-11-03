@@ -2,7 +2,7 @@
 This module contains the prompt templates used to generate descriptions with the LLM.
 
 Each constant is a formatted string that provides context and instructions to the language model
-for generating meaningful descriptions for database columns, dbt models, and dbt columns.
+for generating meaningful descriptions for database columns, dbt models, dbt columns, and model lineage.
 """
 
 # Prompt template for generating a description for a database column.

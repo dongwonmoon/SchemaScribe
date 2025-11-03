@@ -67,9 +67,7 @@ class MarkdownWriter:
 
 
 class DbtMarkdownWriter:
-    """
-    Handles writing the generated dbt catalog to a Markdown file.
-    """
+    """Handles writing the generated dbt catalog to a Markdown file."""
 
     def write(
         self,
@@ -78,7 +76,9 @@ class DbtMarkdownWriter:
         project_name: str,
     ):
         """
-        Writes the dbt catalog data to a Markdown file, including model summaries and column details.
+        Writes the dbt catalog data to a Markdown file.
+
+        This includes model summaries, Mermaid lineage charts, and column details.
 
         Args:
             catalog_data: A dictionary containing the dbt catalog data.
@@ -140,13 +140,19 @@ class DbtMarkdownWriter:
 
 
 class DbtYamlWriter:
-    """Handles reading dbt schema.yml files, updating them with AI-generated descriptions, and writing them back while preserving comments and formatting."""
+    """Handles reading, updating, and writing dbt schema.yml files.
+
+    This class can be used to:
+    - Update schema.yml files with AI-generated descriptions.
+    - Run in a check mode to verify if the documentation is up-to-date.
+    """
 
     def __init__(self, dbt_project_dir: str, check_mode: bool = False):
         """Initializes the DbtYamlWriter.
 
         Args:
             dbt_project_dir: The root directory of the dbt project.
+            check_mode: If True, the writer will not modify files but will check for outdated documentation.
         """
         self.dbt_project_dir = dbt_project_dir
         self.yaml = YAML()
@@ -178,7 +184,17 @@ class DbtYamlWriter:
         return schema_files
 
     def update_yaml_files(self, catalog_data: Dict[str, Any]) -> bool:
-        """Finds and updates all relevant schema.yml files with the catalog data."""
+        """Finds and updates all relevant schema.yml files with the catalog data.
+
+        If in check mode, this method will not write to the files but will return
+        True if any file is outdated.
+
+        Args:
+            catalog_data: The AI-generated catalog data.
+
+        Returns:
+            True if any file is outdated (in check mode), otherwise False.
+        """
         schema_files = self.find_schema_files()
         if not schema_files:
             logger.warning(

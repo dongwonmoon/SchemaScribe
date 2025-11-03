@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "data-scribe"
-version = "0.1.0"
+version = "0.1.1"
 description = "AI-powered data documentation generator for databases and dbt projects."
 readme = "README.md"
 authors = [
@@ -21,7 +21,6 @@ classifiers = [
     "Topic :: Database",
     "Topic :: Scientific/Engineering :: Artificial Intelligence",
     "Topic :: Software Development :: Documentation",
-    "Framework :: Typer",
 ]
 
 dependencies = [

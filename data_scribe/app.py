@@ -192,7 +192,12 @@ def scan_dbt(
     ),
 ):
     """
-    Scans a dbt project, generates a data catalog using an LLM, and writes it to a Markdown file.
+    Scans a dbt project, generates a data catalog, and manages documentation.
+
+    This command can:
+    - Generate a Markdown catalog file.
+    - Directly update dbt schema.yml files with AI-generated content.
+    - Run in a CI check mode to ensure documentation is up-to-date.
     """
     # Load and validate the main configuration file
     config = load_and_validate_config(config_path)
