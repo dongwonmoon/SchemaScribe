@@ -103,6 +103,13 @@ class DbtMarkdownWriter:
                         f"{model_data.get('model_description', '(No summary available)')}\n\n"
                     )
 
+                    # Write the AI-generated Mermaid Lineage chart for the model
+                    f.write("### AI-Generated Lineage (Mermaid)\n")
+                    mermaid_chart = model_data.get(
+                        "model_lineage_chart", "*(Lineage chart generation failed)*"
+                    )
+                    f.write(f"{mermaid_chart}\n\n")
+
                     # Write the header for the column details table
                     f.write("### Column Details\n")
                     f.write("| Column Name | Data Type | AI-Generated Description |\n")
@@ -117,7 +124,10 @@ class DbtMarkdownWriter:
                     for column in columns:
                         col_name = column["name"]
                         col_type = column["type"]
-                        description = column["description"]
+                        ai_data = column.get("ai_generated", {})
+                        description = ai_data.get(
+                            "description", "(AI description failed)"
+                        )
                         f.write(f"| `{col_name}` | `{col_type}` | {description} |\n")
 
             logger.info("Finished writing dbt catalog file.")

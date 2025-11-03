@@ -10,7 +10,11 @@ from ruamel.yaml import YAML
 
 from data_scribe.core.interfaces import BaseLLMClient
 from data_scribe.core.dbt_parser import DbtManifestParser
-from data_scribe.prompts import DBT_MODEL_PROMPT, DBT_COLUMN_PROMPT
+from data_scribe.prompts import (
+    DBT_MODEL_PROMPT,
+    DBT_COLUMN_PROMPT,
+    DBT_MODEL_LINEAGE_PROMPT,
+)
 from data_scribe.utils.logger import get_logger
 
 # Initialize a logger for this module
@@ -68,6 +72,15 @@ class DbtCatalogGenerator:
                 model_prompt, max_tokens=200
             )
 
+            # Generate a Mermaid Lineage Chart for the model it self
+            logger.info(f"  - Generating Mermaid lineage for: {model_name}")
+            lineage_prompt = DBT_MODEL_LINEAGE_PROMPT.format(
+                model_name=model_name, raw_sql=raw_sql
+            )
+            mermaid_chart_block = self.llm_client.get_description(
+                lineage_prompt, max_tokens=1000
+            )
+
             enriched_columns = []
             # Iterate over each column in the model
             for column in model["columns"]:
@@ -88,9 +101,7 @@ class DbtCatalogGenerator:
                 try:
                     ai_data_dict = self.yaml_parser.load(yaml_snippet_str)
                     if not isinstance(ai_data_dict, dict):
-                        raise ValueError(
-                            "AI did not return a valid YAML mapping."
-                        )
+                        raise ValueError("AI did not return a valid YAML mapping.")
                 except Exception as e:
                     logger.error(
                         f"AI YAML snippet parsing failed for {model_name}.{col_name}: {e}"
@@ -109,6 +120,7 @@ class DbtCatalogGenerator:
             # Store the model's description and its enriched columns in the catalog
             catalog_data[model_name] = {
                 "model_description": model_description,
+                "model_lineage_chart": mermaid_chart_block,
                 "columns": enriched_columns,
             }
 

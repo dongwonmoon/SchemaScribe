@@ -24,6 +24,39 @@ Summarize in 1-2 sentences what kind of data this model produces or aggregates f
 ```  
 """
 
+DBT_MODEL_LINEAGE_PROMPT = """
+You are a data architect specializing in dbt.
+Below is the SQL query that defines the '{model_name}' dbt model.
+Analyze the `ref()` and `source()` functions to understand its dependencies.
+
+Generate a Mermaid.js `graph TD` (Top-Down) flowchart code that shows the lineage for this *single* model.
+- Show only the direct parents (sources or refs) flowing *into* this model.
+- Do not show downstream children.
+- Keep it simple.
+
+SQL:
+```sql
+{raw_sql}
+```
+
+---
+EXAMPLE INPUT (SQL):
+with orders as (
+    select * from {{ ref('stg_orders') }}
+),
+payments as (
+    select * from {{ ref('stg_payments') }}
+)
+select ... from orders join payments ...
+---
+EXAMPLE OUTPUT (Mermaid code ONLY):
+```mermaid
+graph TD
+    A[stg_orders] --> C({model_name});
+    B[stg_payments] --> C({model_name});
+```
+"""
+
 # Prompt template for generating a description for a dbt column.
 # This prompt provides the model's SQL and column details, asking for a concise business description.
 DBT_COLUMN_PROMPT = """
