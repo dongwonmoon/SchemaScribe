@@ -48,7 +48,9 @@ class MarkdownWriter:
                 for table_name, columns in catalog_data.items():
                     f.write(f"\n## 📄 Table: `{table_name}`\n\n")
                     # Write the header of the column table
-                    f.write("| Column Name | Data Type | AI-Generated Description |\n")
+                    f.write(
+                        "| Column Name | Data Type | AI-Generated Description |\n"
+                    )
                     f.write("| :--- | :--- | :--- |\n")
 
                     # Write a row for each column
@@ -56,7 +58,9 @@ class MarkdownWriter:
                         col_name = column["name"]
                         col_type = column["type"]
                         description = column["description"]
-                        f.write(f"| `{col_name}` | `{col_type}` | {description} |\n")
+                        f.write(
+                            f"| `{col_name}` | `{col_type}` | {description} |\n"
+                        )
             logger.info("Finished writing catalog file.")
         except IOError as e:
             logger.error(
@@ -105,7 +109,9 @@ class DbtMarkdownWriter:
 
                     # Write the header for the column details table
                     f.write("### Column Details\n")
-                    f.write("| Column Name | Data Type | AI-Generated Description |\n")
+                    f.write(
+                        "| Column Name | Data Type | AI-Generated Description |\n"
+                    )
                     f.write("| :--- | :--- | :--- |\n")
 
                     columns = model_data.get("columns", [])
@@ -118,7 +124,9 @@ class DbtMarkdownWriter:
                         col_name = column["name"]
                         col_type = column["type"]
                         description = column["description"]
-                        f.write(f"| `{col_name}` | `{col_type}` | {description} |\n")
+                        f.write(
+                            f"| `{col_name}` | `{col_type}` | {description} |\n"
+                        )
 
             logger.info("Finished writing dbt catalog file.")
         except IOError as e:
@@ -157,7 +165,10 @@ class DbtYamlWriter:
                 continue
             for root, _, files in os.walk(path):
                 for file in files:
-                    if file.endswith(('.yml', '.yaml')) and "dbt_project" not in file:
+                    if (
+                        file.endswith((".yml", ".yaml"))
+                        and "dbt_project" not in file
+                    ):
                         schema_files.append(os.path.join(root, file))
 
         logger.info(f"Found schema files to check: {schema_files}")
@@ -167,14 +178,18 @@ class DbtYamlWriter:
         """Finds and updates all relevant schema.yml files with the catalog data."""
         schema_files = self.find_schema_files()
         if not schema_files:
-            logger.warning("No .yml files found in 'models', 'seeds', or 'snapshots' directories.")
+            logger.warning(
+                "No .yml files found in 'models', 'seeds', or 'snapshots' directories."
+            )
             return
 
         for file_path in schema_files:
             try:
                 self._update_single_file(file_path, catalog_data)
             except Exception as e:
-                logger.error(f"Error processing {file_path}: {e}", exc_info=True)
+                logger.error(
+                    f"Error processing {file_path}: {e}", exc_info=True
+                )
 
     def _update_single_file(self, file_path: str, catalog_data: Dict[str, Any]):
         """Updates a single schema.yml file with AI-generated descriptions.
@@ -188,7 +203,7 @@ class DbtYamlWriter:
             catalog_data: The AI-generated catalog data.
         """
         try:
-            with open(file_path, 'r', encoding='utf-8') as f:
+            with open(file_path, "r", encoding="utf-8") as f:
                 data = self.yaml.load(f)
         except YAMLError as e:
             logger.error(f"Failed to load YAML file {file_path}: {e}")
@@ -215,22 +230,35 @@ class DbtYamlWriter:
                     if "columns" in node_config:
                         for column_config in node_config["columns"]:
                             column_name = column_config.get("name")
-                            ai_column = next((c for c in ai_model_data["columns"] if c["name"] == column_name), None)
+                            ai_column = next(
+                                (
+                                    c
+                                    for c in ai_model_data["columns"]
+                                    if c["name"] == column_name
+                                ),
+                                None,
+                            )
 
                             if ai_column:
                                 ai_data_dict = ai_column.get("ai_generated", {})
                                 for key, ai_value in ai_data_dict.items():
                                     if not column_config.get(key):
-                                        logger.info(f"    - Updating '{node_name}.{column_name}' with new key: '{key}'")
+                                        logger.info(
+                                            f"    - Updating '{node_name}.{column_name}' with new key: '{key}'"
+                                        )
                                         column_config[key] = ai_value
                                         file_updated = True
 
         if file_updated:
             try:
-                with open(file_path, 'w', encoding='utf-8') as f:
+                with open(file_path, "w", encoding="utf-8") as f:
                     self.yaml.dump(data, f)
-                logger.info(f"Successfully updated '{file_path}' with AI descriptions.")
+                logger.info(
+                    f"Successfully updated '{file_path}' with AI descriptions."
+                )
             except IOError as e:
                 logger.error(f"Failed to write updates to '{file_path}': {e}")
         else:
-            logger.info(f"No missing descriptions found in '{file_path}'. No changes made.")
+            logger.info(
+                f"No missing descriptions found in '{file_path}'. No changes made."
+            )

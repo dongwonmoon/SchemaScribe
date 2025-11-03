@@ -37,7 +37,9 @@ class PostgresConnector(BaseConnector):
         Raises:
             ConnectionError: If the connection to the database fails.
         """
-        logger.info(f"Connecting to PostgreSQL database with params: {db_params}")
+        logger.info(
+            f"Connecting to PostgreSQL database with params: {db_params}"
+        )
         try:
             self.connection = psycopg2.connect(
                 host=db_params.get("host", "localhost"),
@@ -66,7 +68,9 @@ class PostgresConnector(BaseConnector):
             RuntimeError: If the database connection has not been established.
         """
         if not self.cursor:
-            logger.error("get_tables called before establishing a database connection.")
+            logger.error(
+                "get_tables called before establishing a database connection."
+            )
             raise RuntimeError(
                 "Database connection not established. Call connect() first."
             )
@@ -93,7 +97,9 @@ class PostgresConnector(BaseConnector):
             RuntimeError: If the database connection has not been established.
         """
         if not self.cursor:
-            logger.error(f"get_columns called for table '{table_name}' before establishing a database connection.")
+            logger.error(
+                f"get_columns called for table '{table_name}' before establishing a database connection."
+            )
             raise RuntimeError(
                 "Database connection not established. Call connect() first."
             )
@@ -107,7 +113,9 @@ class PostgresConnector(BaseConnector):
         """,
             (table_name,),
         )
-        columns = [{"name": col[0], "type": col[1]} for col in self.cursor.fetchall()]
+        columns = [
+            {"name": col[0], "type": col[1]} for col in self.cursor.fetchall()
+        ]
         logger.info(f"Found {len(columns)} columns in table '{table_name}'.")
         return columns
 

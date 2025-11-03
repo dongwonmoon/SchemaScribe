@@ -22,7 +22,9 @@ class OllamaClient(BaseLLMClient):
     a standardized way to generate text descriptions using Ollama's models.
     """
 
-    def __init__(self, model: str = "llama3", host: str = "http://localhost:11434"):
+    def __init__(
+        self, model: str = "llama3", host: str = "http://localhost:11434"
+    ):
         """
         Initializes the OllamaClient.
 
@@ -31,14 +33,18 @@ class OllamaClient(BaseLLMClient):
             host: The host of the Ollama API (e.g., "http://localhost:11434").
         """
         try:
-            logger.info(f"Initializing Ollama client with model: {model} and host: {host}")
+            logger.info(
+                f"Initializing Ollama client with model: {model} and host: {host}"
+            )
             self.client = ollama.Client(host=host)
             self.model = model
             logger.info(f"Pulling model '{model}'...")
             self.client.pull(model)
             logger.info("Ollama client initialized successfully.")
         except Exception as e:
-            logger.error(f"Failed to initialize Ollama client: {e}", exc_info=True)
+            logger.error(
+                f"Failed to initialize Ollama client: {e}", exc_info=True
+            )
             raise
 
     def get_description(self, prompt: str, max_tokens: int) -> str:
@@ -65,5 +71,8 @@ class OllamaClient(BaseLLMClient):
             logger.debug(f"Generated description: {description}")
             return description
         except Exception as e:
-            logger.error(f"Failed to generate AI description with Ollama: {e}", exc_info=True)
+            logger.error(
+                f"Failed to generate AI description with Ollama: {e}",
+                exc_info=True,
+            )
             return "(AI description generation failed)"

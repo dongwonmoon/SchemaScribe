@@ -10,7 +10,10 @@ registering them.
 from typing import Dict, Type, Any
 
 from data_scribe.core.interfaces import BaseConnector, BaseLLMClient
-from data_scribe.components.db_connectors import SQLiteConnector, PostgresConnector
+from data_scribe.components.db_connectors import (
+    SQLiteConnector,
+    PostgresConnector,
+)
 from data_scribe.components.llm_clients import OpenAIClient, OllamaClient
 from data_scribe.utils.logger import get_logger
 

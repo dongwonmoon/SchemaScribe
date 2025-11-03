@@ -13,7 +13,11 @@ import functools
 from data_scribe.core.factory import get_db_connector, get_llm_client
 from data_scribe.core.catalog_generator import CatalogGenerator
 from data_scribe.core.dbt_catalog_generator import DbtCatalogGenerator
-from data_scribe.utils.writers import MarkdownWriter, DbtMarkdownWriter, DbtYamlWriter
+from data_scribe.utils.writers import (
+    MarkdownWriter,
+    DbtMarkdownWriter,
+    DbtYamlWriter,
+)
 from data_scribe.utils.utils import load_config
 from data_scribe.utils.logger import get_logger
 
