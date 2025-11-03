@@ -13,6 +13,7 @@ from data_scribe.core.interfaces import BaseConnector, BaseLLMClient
 from data_scribe.components.db_connectors import (
     SQLiteConnector,
     PostgresConnector,
+    MariaDBConnector,
 )
 from data_scribe.components.llm_clients import OpenAIClient, OllamaClient
 from data_scribe.utils.logger import get_logger
@@ -26,6 +27,8 @@ logger = get_logger(__name__)
 DB_CONNECTOR_REGISTRY: Dict[str, Type[BaseConnector]] = {
     "sqlite": SQLiteConnector,
     "postgres": PostgresConnector,
+    "mariadb": MariaDBConnector,
+    "mysql": MariaDBConnector,
 }
 
 # Registry for LLM clients.
