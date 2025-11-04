@@ -12,22 +12,18 @@ from ruamel.yaml.comments import CommentedMap
 from ruamel.yaml.error import YAMLError
 
 from data_scribe.utils.logger import get_logger
+from data_scribe.core.interfaces import BaseWriter
 
 # Initialize a logger for this module
 logger = get_logger(__name__)
 
 
-class MarkdownWriter:
+class MarkdownWritero(BaseWriter):
     """
     Handles writing the generated database catalog to a Markdown file.
     """
 
-    def write(
-        self,
-        catalog_data: Dict[str, List[Dict[str, Any]]],
-        output_filename: str,
-        db_profile_name: str,
-    ):
+    def write(self, catalog_data: Dict[str, List[Dict[str, Any]]], **kwargs):
         """
         Writes the catalog data to a Markdown file in a structured table format.
 
@@ -36,6 +32,14 @@ class MarkdownWriter:
             output_filename: The name of the file to write the catalog to.
             db_profile_name: The name of the database profile used, for the report title.
         """
+        output_filename = kwargs.get("output_filename")
+        db_profile_name = kwargs.get("db_profile_name")
+        if not output_filename or not db_profile_name:
+            logger.error(
+                "MarkdownWriter 'write' method missing 'output_filename' or 'db_profile_name'."
+            )
+            raise ValueError("Missing required kwargs for MarkdownWriter.")
+
         try:
             with open(output_filename, "w", encoding="utf-8") as f:
                 logger.info(
@@ -66,15 +70,10 @@ class MarkdownWriter:
             raise
 
 
-class DbtMarkdownWriter:
+class DbtMarkdownWriter(BaseWriter):
     """Handles writing the generated dbt catalog to a Markdown file."""
 
-    def write(
-        self,
-        catalog_data: Dict[str, Any],
-        output_filename: str,
-        project_name: str,
-    ):
+    def write(self, catalog_data: Dict[str, Any], **kwargs):
         """
         Writes the dbt catalog data to a Markdown file.
 
@@ -85,6 +84,14 @@ class DbtMarkdownWriter:
             output_filename: The name of the file to write the catalog to.
             project_name: The name of the dbt project, for the report title.
         """
+        output_filename = kwargs.get("output_filename")
+        project_name = kwargs.get("project_name")
+        if not output_filename or not project_name:
+            logger.error(
+                "DbtMarkdownWriter 'write' method missing 'output_filename' or 'project_name'."
+            )
+            raise ValueError("Missing required kwargs for DbtMarkdownWriter.")
+
         try:
             with open(output_filename, "w", encoding="utf-8") as f:
                 logger.info(

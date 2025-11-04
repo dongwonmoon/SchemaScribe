@@ -57,3 +57,9 @@ class BaseConnector(ABC):
     def close(self):
         """Closes the database connection."""
         pass
+
+
+class BaseWriter(ABC):
+    @abstractmethod
+    def wrtie(self, catalog_data: Dict[str, Any], **kwargs):
+        pass

@@ -10,7 +10,7 @@ import yaml
 import sys
 import functools
 
-from data_scribe.core.factory import get_db_connector, get_llm_client
+from data_scribe.core.factory import get_db_connector, get_llm_client, get_writer
 from data_scribe.core.catalog_generator import CatalogGenerator
 from data_scribe.core.dbt_catalog_generator import DbtCatalogGenerator
 from data_scribe.utils.writers import (
@@ -127,6 +127,9 @@ def scan_db(
     output_filename: str = typer.Option(
         "db_catalog.md", "--output", help="The name of the output file."
     ),
+    output_format: str = typer.Option(
+        "markdown", "--format", help="Output format (e.g., markdown, json)."
+    ),
 ):
     """
     Scans a database schema, generates a data catalog using an LLM, and writes it to a Markdown file.
@@ -156,11 +159,19 @@ def scan_db(
     catalog = CatalogGenerator(db_connector, llm_client).generate_catalog(
         db_profile_name
     )
-    # Write the generated catalog to a Markdown file
-    MarkdownWriter().write(catalog, output_filename, db_profile_name)
-    logger.info(f"Catalog written to '{output_filename}'.")
-    # Ensure the database connection is closed
-    db_connector.close()
+    try:
+        writer = get_writer(output_format)
+        writer_kwargs = {
+            "output_filename": output_filename,
+            "db_profile_name": db_profile_name,
+        }
+        writer.write(catalog, **writer_kwargs)
+        logger.info(
+            f"Catalog written to '{output_filename}' using {output_format} writer."
+        )
+    except (ValueError, IOError) as e:
+        logger.error(f"Failed to write catalog: {e}")
+        raise typer.Exit(code=1)
 
 
 @app.command(name="dbt")
@@ -179,6 +190,9 @@ def scan_dbt(
     ),
     output_filename: str = typer.Option(
         "dbt_catalog.md", "--output", help="The name of the output file."
+    ),
+    output_format: str = typer.Option(
+        "dbt-markdown", "--format", help="Output format (default: dbt-markdown)."
     ),
     update_yaml: bool = typer.Option(
         False,
@@ -227,6 +241,15 @@ def scan_dbt(
         DbtYamlWriter(dbt_project_dir).update_yaml_files(catalog)
         logger.info("dbt schema.yml update complete.")
     else:
-        # Write the generated catalog to a Markdown file
-        DbtMarkdownWriter().write(catalog, output_filename, dbt_project_dir)
-        logger.info(f"DBT catalog written to '{output_filename}'.")
+        try:
+            logger.info(f"Using output format: '{output_format}'")
+            writer = get_writer(output_format)
+            writer_kwargs = {
+                "output_filename": output_filename,
+                "project_name": dbt_project_dir,  # 👈 (수정) project_name 전달
+            }
+            writer.write(catalog, **writer_kwargs)
+            logger.info(f"DBT catalog written to '{output_filename}'.")
+        except (ValueError, IOError) as e:
+            logger.error(f"Failed to write catalog: {e}")
+            raise typer.Exit(code=1)
