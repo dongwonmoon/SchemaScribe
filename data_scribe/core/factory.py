@@ -13,9 +13,18 @@ from data_scribe.core.interfaces import BaseConnector, BaseLLMClient, BaseWriter
 from data_scribe.components.db_connectors import (
     SQLiteConnector,
     PostgresConnector,
+    MariaDBConnector,
 )
+from data_scribe.components.llm_clients import (
+    OpenAIClient,
+    OllamaClient,
+    GoogleGenAIClient,
+)
+<<<<<<< HEAD
 from data_scribe.components.llm_clients import OpenAIClient, OllamaClient
 from data_scribe.utils.writers import MarkdownWriter, DbtMarkdownWriter
+=======
+>>>>>>> c42842691c900962a582b5dfcc0c6740ec2be421
 from data_scribe.utils.logger import get_logger
 
 # Initialize a logger for this module
@@ -27,6 +36,8 @@ logger = get_logger(__name__)
 DB_CONNECTOR_REGISTRY: Dict[str, Type[BaseConnector]] = {
     "sqlite": SQLiteConnector,
     "postgres": PostgresConnector,
+    "mariadb": MariaDBConnector,
+    "mysql": MariaDBConnector,
 }
 
 # Registry for LLM clients.
@@ -35,6 +46,7 @@ DB_CONNECTOR_REGISTRY: Dict[str, Type[BaseConnector]] = {
 LLM_CLIENT_REGISTRY: Dict[str, Type[BaseLLMClient]] = {
     "openai": OpenAIClient,
     "ollama": OllamaClient,
+    "google": GoogleGenAIClient,
 }
 
 WRITER_REGISTRY: Dict[str, Type[BaseWriter]] = {

@@ -15,6 +15,13 @@ db_connections:
     password: "password"
     dbname: "analytics_db"
 
+  prod_mariadb:
+    type: "mariadb"
+    host: "prod.mariadb.com"
+    user: "admin"
+    password: "${MARIADB_PASSWORD}"
+    dbname: "production_db"
+
 llm_providers:
   openai_prod:
     provider: "openai"  
@@ -24,3 +31,7 @@ llm_providers:
     provider: "ollama"
     model: "granite3.3:2b"
     host: "http://localhost:11434"
+
+  google_gemini:
+    provider: "google"
+    model: "gemini-2.5-flash"
