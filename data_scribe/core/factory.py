@@ -20,11 +20,8 @@ from data_scribe.components.llm_clients import (
     OllamaClient,
     GoogleGenAIClient,
 )
-<<<<<<< HEAD
 from data_scribe.components.llm_clients import OpenAIClient, OllamaClient
 from data_scribe.utils.writers import MarkdownWriter, DbtMarkdownWriter
-=======
->>>>>>> c42842691c900962a582b5dfcc0c6740ec2be421
 from data_scribe.utils.logger import get_logger
 
 # Initialize a logger for this module
