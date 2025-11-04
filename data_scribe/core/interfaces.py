@@ -61,5 +61,5 @@ class BaseConnector(ABC):
 
 class BaseWriter(ABC):
     @abstractmethod
-    def wrtie(self, catalog_data: Dict[str, Any], **kwargs):
+    def write(self, catalog_data: Dict[str, Any], **kwargs):
         pass

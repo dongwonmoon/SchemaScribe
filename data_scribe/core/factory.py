@@ -21,7 +21,7 @@ from data_scribe.components.llm_clients import (
     GoogleGenAIClient,
 )
 from data_scribe.components.llm_clients import OpenAIClient, OllamaClient
-from data_scribe.utils.writers import MarkdownWriter, DbtMarkdownWriter
+from data_scribe.utils.writers import MarkdownWriter, DbtMarkdownWriter, JsonWriter
 from data_scribe.utils.logger import get_logger
 
 # Initialize a logger for this module
@@ -49,6 +49,7 @@ LLM_CLIENT_REGISTRY: Dict[str, Type[BaseLLMClient]] = {
 WRITER_REGISTRY: Dict[str, Type[BaseWriter]] = {
     "markdown": MarkdownWriter,
     "dbt-markdown": DbtMarkdownWriter,
+    "json": JsonWriter,
 }
 
 
