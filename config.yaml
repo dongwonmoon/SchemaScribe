@@ -5,7 +5,15 @@ default:
 db_connections:
   local_sqlite:
     type: "sqlite"     
-    path: "test.db"    
+    path: "test.db" 
+
+  local_files:
+    type: "duckdb"
+    path: "./jaffle_shop/target/*.parquet"
+
+  s3_logs:
+    type: "duckdb"
+    path: "s3://my-log-bucket/logs_2024_*.csv"
 
   dev_postgres:
     type: "postgres"

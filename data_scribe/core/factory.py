@@ -14,6 +14,7 @@ from data_scribe.components.db_connectors import (
     SQLiteConnector,
     PostgresConnector,
     MariaDBConnector,
+    DuckDBConnector,
 )
 from data_scribe.components.llm_clients import (
     OpenAIClient,
@@ -40,6 +41,7 @@ DB_CONNECTOR_REGISTRY: Dict[str, Type[BaseConnector]] = {
     "postgres": PostgresConnector,
     "mariadb": MariaDBConnector,
     "mysql": MariaDBConnector,
+    "duckdb": DuckDBConnector,
 }
 
 # Registry for LLM clients.
