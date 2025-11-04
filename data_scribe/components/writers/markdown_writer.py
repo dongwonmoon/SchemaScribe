@@ -41,7 +41,9 @@ class MarkdownWriter(BaseWriter):
                 for table_name, columns in catalog_data.items():
                     f.write(f"\n## 📄 Table: `{table_name}`\n\n")
                     # Write the header of the column table
-                    f.write("| Column Name | Data Type | AI-Generated Description |\n")
+                    f.write(
+                        "| Column Name | Data Type | AI-Generated Description |\n"
+                    )
                     f.write("| :--- | :--- | :--- |\n")
 
                     # Write a row for each column
@@ -49,7 +51,9 @@ class MarkdownWriter(BaseWriter):
                         col_name = column["name"]
                         col_type = column["type"]
                         description = column["description"]
-                        f.write(f"| `{col_name}` | `{col_type}` | {description} |\n")
+                        f.write(
+                            f"| `{col_name}` | `{col_type}` | {description} |\n"
+                        )
             logger.info("Finished writing catalog file.")
         except IOError as e:
             logger.error(

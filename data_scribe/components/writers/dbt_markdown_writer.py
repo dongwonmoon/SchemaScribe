@@ -50,13 +50,16 @@ class DbtMarkdownWriter(BaseWriter):
                     # Write the AI-generated Mermaid Lineage chart for the model
                     f.write("### AI-Generated Lineage (Mermaid)\n")
                     mermaid_chart = model_data.get(
-                        "model_lineage_chart", "*(Lineage chart generation failed)*"
+                        "model_lineage_chart",
+                        "*(Lineage chart generation failed)*",
                     )
                     f.write(f"{mermaid_chart}\n\n")
 
                     # Write the header for the column details table
                     f.write("### Column Details\n")
-                    f.write("| Column Name | Data Type | AI-Generated Description |\n")
+                    f.write(
+                        "| Column Name | Data Type | AI-Generated Description |\n"
+                    )
                     f.write("| :--- | :--- | :--- |\n")
 
                     columns = model_data.get("columns", [])
@@ -72,7 +75,9 @@ class DbtMarkdownWriter(BaseWriter):
                         description = ai_data.get(
                             "description", "(AI description failed)"
                         )
-                        f.write(f"| `{col_name}` | `{col_type}` | {description} |\n")
+                        f.write(
+                            f"| `{col_name}` | `{col_type}` | {description} |\n"
+                        )
 
             logger.info("Finished writing dbt catalog file.")
         except IOError as e:

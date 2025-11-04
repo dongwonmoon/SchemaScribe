@@ -20,7 +20,9 @@ class MariaDBConnector(BaseConnector):
         try:
             self.dbname = db_params.get("dbname")
             if not self.dbname:
-                raise ValueError("'dbname' (database name) parameter is required.")
+                raise ValueError(
+                    "'dbname' (database name) parameter is required."
+                )
 
             self.connection = mysql.connector.connect(
                 host=db_params.get("host", "localhost"),
@@ -30,10 +32,14 @@ class MariaDBConnector(BaseConnector):
                 database=self.dbname,  # Use 'database' key
             )
             self.cursor = self.connection.cursor()
-            logger.info(f"Successfully connected to MariaDB/MySQL DB '{self.dbname}'.")
+            logger.info(
+                f"Successfully connected to MariaDB/MySQL DB '{self.dbname}'."
+            )
         except mysql.connector.Error as e:
             logger.error(f"MariaDB/MySQL connection failed: {e}", exc_info=True)
-            raise ConnectionError(f"MariaDB/MySQL connection failed: {e}") from e
+            raise ConnectionError(
+                f"MariaDB/MySQL connection failed: {e}"
+            ) from e
 
     def get_tables(self) -> List[str]:
         if not self.cursor or not self.dbname:
@@ -67,7 +73,9 @@ class MariaDBConnector(BaseConnector):
             (self.dbname, table_name),
         )
 
-        columns = [{"name": col[0], "type": col[1]} for col in self.cursor.fetchall()]
+        columns = [
+            {"name": col[0], "type": col[1]} for col in self.cursor.fetchall()
+        ]
         logger.info(f"Found {len(columns)} columns in table {table_name}.")
         return columns
 

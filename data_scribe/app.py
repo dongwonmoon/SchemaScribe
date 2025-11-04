@@ -12,10 +12,14 @@ import yaml
 import sys
 import functools
 
-from data_scribe.core.factory import get_db_connector, get_llm_client, get_writer
+from data_scribe.core.factory import (
+    get_db_connector,
+    get_llm_client,
+    get_writer,
+)
 from data_scribe.core.catalog_generator import CatalogGenerator
 from data_scribe.core.dbt_catalog_generator import DbtCatalogGenerator
-from data_scribe.utils.writers import DbtYamlWriter
+from data_scribe.components.writers import DbtYamlWriter
 from data_scribe.utils.utils import load_config
 from data_scribe.utils.logger import get_logger
 
@@ -124,7 +128,9 @@ def scan_db(
         "config.yaml", "--config", help="The path to the configuration file."
     ),
     output_profile: str = typer.Option(
-        None, "--output", help="The output profile name from config.yaml to use for writing the catalog."
+        None,
+        "--output",
+        help="The output profile name from config.yaml to use for writing the catalog.",
     ),
 ):
     """
@@ -154,7 +160,9 @@ def scan_db(
     )
 
     if not output_profile:
-        logger.info("Catalog generated. No --output profile specified, so not writing to a file.")
+        logger.info(
+            "Catalog generated. No --output profile specified, so not writing to a file."
+        )
         db_connector.close()
         return
 
@@ -166,9 +174,13 @@ def scan_db(
         # Pass necessary context and parameters to the writer
         writer_kwargs = {"db_profile_name": db_profile_name, **writer_params}
         writer.write(catalog, **writer_kwargs)
-        logger.info(f"Catalog written successfully using output profile: '{output_profile}'.")
+        logger.info(
+            f"Catalog written successfully using output profile: '{output_profile}'."
+        )
     except (KeyError, ValueError, IOError) as e:
-        logger.error(f"Failed to write catalog using profile '{output_profile}': {e}")
+        logger.error(
+            f"Failed to write catalog using profile '{output_profile}': {e}"
+        )
         raise typer.Exit(code=1)
     finally:
         db_connector.close()
@@ -189,7 +201,9 @@ def scan_dbt(
         "config.yaml", "--config", help="The path to the configuration file."
     ),
     output_profile: str = typer.Option(
-        None, "--output", help="The output profile name from config.yaml for writing the catalog."
+        None,
+        "--output",
+        help="The output profile name from config.yaml for writing the catalog.",
     ),
     update_yaml: bool = typer.Option(
         False,
@@ -224,14 +238,20 @@ def scan_dbt(
         updates_needed = writer.update_yaml_files(catalog)
 
         if updates_needed:
-            logger.error("CI CHECK FAILED: dbt documentation is outdated or missing.")
-            logger.error("Run 'data-scribe dbt --project-dir ... --update' to fix this.")
+            logger.error(
+                "CI CHECK FAILED: dbt documentation is outdated or missing."
+            )
+            logger.error(
+                "Run 'data-scribe dbt --project-dir ... --update' to fix this."
+            )
             raise typer.Exit(code=1)
         else:
             logger.info("CI CHECK PASSED: All dbt documentation is up-to-date.")
 
     if update_yaml:
-        logger.info("Updating dbt schema.yml files with AI-generated content...")
+        logger.info(
+            "Updating dbt schema.yml files with AI-generated content..."
+        )
         DbtYamlWriter(dbt_project_dir).update_yaml_files(catalog)
         logger.info("dbt schema.yml update process complete.")
     elif output_profile:
@@ -239,7 +259,9 @@ def scan_dbt(
             logger.info(f"Using output profile: '{output_profile}'")
             # 1. Retrieve the writer parameters from the specified output profile in config.yaml
             writer_params = config["output_profiles"][output_profile]
-            writer_type = writer_params.pop("type")  # e.g., "dbt-markdown", "confluence"
+            writer_type = writer_params.pop(
+                "type"
+            )  # e.g., "dbt-markdown", "confluence"
 
             # 2. Instantiate the appropriate writer using the factory
             writer = get_writer(writer_type)

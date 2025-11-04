@@ -32,6 +32,7 @@ class JsonWriter(BaseWriter):
             logger.info(f"Successfully wrote catalog to '{output_filename}'.")
         except IOError as e:
             logger.error(
-                f"Error writing to JSON file '{output_filename}': {e}", exc_info=True
+                f"Error writing to JSON file '{output_filename}': {e}",
+                exc_info=True,
             )
             raise

@@ -100,7 +100,9 @@ class DbtCatalogGenerator:
                 try:
                     ai_data_dict = self.yaml_parser.load(yaml_snippet_str)
                     if not isinstance(ai_data_dict, dict):
-                        raise ValueError("AI did not return a valid YAML mapping.")
+                        raise ValueError(
+                            "AI did not return a valid YAML mapping."
+                        )
                 except Exception as e:
                     logger.error(
                         f"AI YAML snippet parsing failed for {model_name}.{col_name}: {e}"

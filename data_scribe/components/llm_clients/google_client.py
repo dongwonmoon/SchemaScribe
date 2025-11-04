@@ -37,7 +37,9 @@ class GoogleGenAIClient(BaseLLMClient):
             self.model = genai.GenerativeModel(model)
             logger.info("Google GenAI client initialized successfully.")
         except Exception as e:
-            logger.error(f"Failed to initialize Google GenAI client: {e}", exc_info=True)
+            logger.error(
+                f"Failed to initialize Google GenAI client: {e}", exc_info=True
+            )
             raise ValueError(f"Failed to initialize Google GenAI client: {e}")
 
     def get_description(self, prompt: str, max_tokens: int) -> str:
@@ -70,5 +72,8 @@ class GoogleGenAIClient(BaseLLMClient):
             logger.info("Response received from Google GenAI.")
             return description
         except Exception as e:
-            logger.error(f"Failed to generate description with Google GenAI: {e}", exc_info=True)
+            logger.error(
+                f"Failed to generate description with Google GenAI: {e}",
+                exc_info=True,
+            )
             return "(Google AI generation failed)"
