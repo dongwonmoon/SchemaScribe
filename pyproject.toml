@@ -38,6 +38,7 @@ google = ["google-generativeai"]
 ollama = ["ollama"]
 confluence = ["atlassian-python-api"]
 snowflake = ["snowflake-connector-python"]
+bigquery = ["google-cloud-bigquery", "google-auth"]
 
 all = [
     "psycopg2-binary",

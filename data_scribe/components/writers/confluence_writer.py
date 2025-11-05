@@ -140,7 +140,6 @@ class ConfluenceWriter(BaseWriter):
         self, catalog_data: Dict[str, Any], project_name: str
     ) -> str:
         """
-
         Dynamically generates an HTML representation of the catalog data.
 
         This function acts as a router, calling the appropriate HTML generation

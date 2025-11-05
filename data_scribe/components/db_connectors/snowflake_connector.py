@@ -1,3 +1,9 @@
+"""
+This module provides a concrete implementation of the BaseConnector for Snowflake databases.
+
+It uses the `snowflake-connector-python` library to handle the connection, schema extraction,
+and other database interactions.
+"""
 import snowflake.connector
 from typing import List, Dict, Any
 
@@ -9,13 +15,32 @@ logger = get_logger(__name__)
 
 
 class SnowflakeConnector(BaseConnector):
+    """
+    Connector for Snowflake data warehouses.
+
+    This class implements the BaseConnector interface to provide connectivity
+    and schema extraction for Snowflake.
+    """
+
     def __init__(self):
+        """Initializes the SnowflakeConnector."""
         self.connection = None
         self.cursor = None
         self.dbname = None
         self.schema_name = None
 
     def connect(self, db_params: Dict[str, Any]):
+        """
+        Connects to the Snowflake database using the provided parameters.
+
+        Args:
+            db_params: A dictionary of connection parameters, including 'user',
+                       'password', 'account', 'warehouse', 'database', and 'schema'.
+
+        Raises:
+            ValueError: If the 'database' parameter is missing.
+            ConnectionError: If the database connection fails.
+        """
         try:
             self.dbname = db_params.get("database")
             self.schema_name = db_params.get("schema", "public")
@@ -40,6 +65,12 @@ class SnowflakeConnector(BaseConnector):
             raise ConnectionError(f"Snowflake connection failed: {e}")
 
     def get_tables(self) -> List[str]:
+        """
+        Retrieves a list of all table names in the configured schema.
+
+        Returns:
+            A list of strings, where each string is a table name.
+        """
         if not self.cursor:
             raise RuntimeError("Must connect to the DB first.")
 
@@ -48,7 +79,8 @@ class SnowflakeConnector(BaseConnector):
         query = f"""
             SELECT table_name
             FROM "{self.dbname}".information_schema.tables
-            WHERE table_schema = %s AND table_type = 'BASE TABLE;        """
+            WHERE table_schema = %s AND table_type = 'BASE TABLE';
+        """
         self.cursor.execute(query, (self.schema_name,))
 
         tables = [table[0] for table in self.cursor.fetchall()]
@@ -56,6 +88,15 @@ class SnowflakeConnector(BaseConnector):
         return tables
 
     def get_columns(self, table_name: str) -> List[Dict[str, str]]:
+        """
+        Retrieves column information (name and type) for a specific table.
+
+        Args:
+            table_name: The name of the table to inspect.
+
+        Returns:
+            A list of dictionaries, each representing a column with its name and type.
+        """
         if not self.cursor:
             raise RuntimeError("Must connect to the DB first.")
 
@@ -73,6 +114,12 @@ class SnowflakeConnector(BaseConnector):
         return columns
 
     def get_views(self) -> List[Dict[str, str]]:
+        """
+        Retrieves a list of all views and their SQL definitions from the schema.
+
+        Returns:
+            A list of dictionaries, each representing a view with its name and definition.
+        """
         if not self.cursor:
             raise RuntimeError("Must connect to the DB first.")
 
@@ -91,9 +138,9 @@ class SnowflakeConnector(BaseConnector):
         return views
 
     def get_foreign_keys(self) -> List[Dict[str, str]]:
-        """모든 외래 키 관계를 가져옵니다."""
+        """Retrieves all foreign key relationships in the schema."""
         if not self.cursor:
-            raise RuntimeError("DB에 먼저 연결해야 합니다.")
+            raise RuntimeError("Must connect to the DB first.")
 
         logger.info("Fetching foreign key relationships from Snowflake...")
         self.cursor.execute(f'USE SCHEMA "{self.dbname}"."{self.schema_name}"')
@@ -114,6 +161,7 @@ class SnowflakeConnector(BaseConnector):
         return foreign_keys
 
     def close(self):
+        """Closes the Snowflake cursor and connection."""
         if self.cursor:
             self.cursor.close()
         if self.connection:

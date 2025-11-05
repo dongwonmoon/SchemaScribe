@@ -1,3 +1,9 @@
+"""
+This module provides a writer for generating a data catalog in JSON format.
+
+It implements the `BaseWriter` interface and is responsible for serializing the
+structured catalog data into a JSON file.
+"""
 from typing import Dict, List, Any
 import json
 
@@ -15,14 +21,15 @@ class JsonWriter(BaseWriter):
 
     def write(self, catalog_data: Dict[str, Any], **kwargs):
         """
-        Writes the catalog data to a JSON file
+        Writes the catalog data to a JSON file.
 
-        kwargs required:
-            output_filename (str): The name of the file to write the catalog to.
+        Args:
+            catalog_data: The dictionary containing the structured data catalog.
+            **kwargs: Expects 'filename' to be provided.
         """
-        output_filename = kwargs.get("output_filename")
+        output_filename = kwargs.get("filename")
         if not output_filename:
-            logger.error("JsonWriter 'write' method missing 'output_filename'.")
+            logger.error("JsonWriter 'write' method missing 'filename'.")
             raise ValueError("Missing required kwargs for JsonWriter.")
 
         try:

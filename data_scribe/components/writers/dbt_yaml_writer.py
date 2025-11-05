@@ -1,3 +1,10 @@
+
+"""
+This module provides a writer for updating dbt schema.yml files.
+
+It can be used to enrich existing dbt documentation with AI-generated content
+or to check if the documentation is up-to-date.
+"""
 from typing import Dict, List, Any
 import os
 from ruamel.yaml import YAML

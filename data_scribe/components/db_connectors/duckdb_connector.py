@@ -1,3 +1,9 @@
+"""
+This module provides a concrete implementation of the BaseConnector for DuckDB.
+
+It handles connecting to an in-memory DuckDB instance and reading data from
+local or remote files (e.g., Parquet, CSV) specified by a path pattern.
+"""
 import duckdb
 from typing import List, Dict, Any
 
@@ -9,11 +15,31 @@ logger = get_logger(__name__)
 
 
 class DuckDBConnector(BaseConnector):
+    """
+    Connector for reading data using DuckDB.
+
+    This connector is designed to use DuckDB's ability to directly query
+    file-based datasets (like Parquet or CSV files, including from S3)
+    without a persistent database server.
+    """
+
     def __init__(self):
-        self.connection = None
-        self.file_path_pattern = None
+        """Initializes the DuckDBConnector."""
+        self.connection: duckdb.DuckDBPyConnection | None = None
+        self.file_path_pattern: str | None = None
 
     def connect(self, db_params: Dict[str, Any]):
+        """
+        Initializes an in-memory DuckDB connection and loads necessary extensions.
+
+        Args:
+            db_params: A dictionary containing the 'path' to the file(s) to be read.
+                       Example: {"path": "./data/*.parquet"} or {"path": "s3://bucket/data.csv"}
+
+        Raises:
+            ValueError: If the 'path' parameter is missing.
+            ConnectionError: If the connection to DuckDB fails.
+        """
         try:
             self.file_path_pattern = db_params.get("path")
             if not self.file_path_pattern:
@@ -21,10 +47,12 @@ class DuckDBConnector(BaseConnector):
                     "Missing 'path' parameter for DuckDBConnector."
                 )
 
+            # Connect to an in-memory DuckDB database
             self.connection = duckdb.connect(database=":memory:")
 
-            if self.file_path_pattern.startwith("s3://"):
-                self.connection.execute(f"INSTALL httpfs; LOAD httpfs;")
+            # If the path points to S3, install and load the httpfs extension
+            if self.file_path_pattern.startswith("s3://"):
+                self.connection.execute("INSTALL httpfs; LOAD httpfs;")
 
             logger.info("Successfully connected to DuckDB.")
         except Exception as e:
@@ -32,18 +60,39 @@ class DuckDBConnector(BaseConnector):
             raise ConnectionError(f"Failed to connect to DuckDB: {e}")
 
     def get_tables(self) -> List[str]:
+        """
+        Returns the file path pattern as the "table" to be analyzed.
+
+        Since DuckDB is used to query files directly, the concept of a "table"
+        in this context is the file path pattern itself.
+
+        Returns:
+            A list containing a single string: the file path pattern.
+        """
         if not self.file_path_pattern:
             raise RuntimeError("Not connected to a DuckDB database.")
 
         return [self.file_path_pattern]
 
     def get_columns(self, table_name: str) -> List[Dict[str, str]]:
-        if not self.connect:
+        """
+        Describes the columns of the dataset specified by the file path pattern.
+
+        It uses DuckDB's `DESCRIBE` and `read_auto` to infer the schema from the file(s).
+
+        Args:
+            table_name: The file path pattern to analyze (e.g., "./data/*.parquet").
+
+        Returns:
+            A list of dictionaries, each representing a column with its name and type.
+        """
+        if not self.connection:
             raise RuntimeError("Not connected to a DuckDB database.")
 
         try:
             logger.info(f"Fetching columns for table: {table_name}")
 
+            # Use DESCRIBE on a read_auto query to get the schema
             query = f"DESCRIBE SELECT * FROM read_auto('{table_name}');"
             result = self.connection.execute(query).fetchall()
 
@@ -76,7 +125,13 @@ class DuckDBConnector(BaseConnector):
 
     def get_foreign_keys(self) -> List[Dict[str, str]]:
         """
-        Retrieves all foreign key relationships.
+        Retrieves all foreign key relationships from the attached database.
+
+        Note: This is often not applicable when querying transient file-based data,
+        but is included for completeness.
+
+        Returns:
+            A list of dictionaries, each representing a foreign key relationship.
         """
         if not self.connection:
             raise RuntimeError(
@@ -86,6 +141,7 @@ class DuckDBConnector(BaseConnector):
         logger.info("Fetching foreign key relationships from DuckDB...")
         foreign_keys = []
         try:
+            # This pragma works for attached databases but may not for file scans
             self.connection.execute("SELECT * FROM pragma_foreign_keys();")
             fk_results = self.connection.fetchall()
 
@@ -109,6 +165,7 @@ class DuckDBConnector(BaseConnector):
         return foreign_keys
 
     def close(self):
+        """Closes the in-memory DuckDB connection."""
         if self.connection:
             self.connection.close()
             self.connection = None
