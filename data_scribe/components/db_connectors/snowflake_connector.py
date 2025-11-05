@@ -32,7 +32,9 @@ class SnowflakeConnector(BaseConnector):
                 schema=self.schema_name,
             )
             self.cursor = self.connection.cursor()
-            logger.info(f"Successfully connected to Snowflake DB '{self.dbname}'.")
+            logger.info(
+                f"Successfully connected to Snowflake DB '{self.dbname}'."
+            )
         except Exception as e:
             logger.error(f"Snowflake connection failed: {e}", exc_info=True)
             raise ConnectionError(f"Snowflake connection failed: {e}")
@@ -64,7 +66,9 @@ class SnowflakeConnector(BaseConnector):
         """
         self.cursor.execute(query, (self.schema_name, table_name))
 
-        columns = [{"name": col[0], "type": col[1]} for col in self.cursor.fetchall()]
+        columns = [
+            {"name": col[0], "type": col[1]} for col in self.cursor.fetchall()
+        ]
         logger.info(f"Found {len(columns)} columns in table {table_name}.")
         return columns
 
@@ -80,7 +84,8 @@ class SnowflakeConnector(BaseConnector):
         self.cursor.execute(query, (self.schema_name,))
 
         views = [
-            {"name": view[0], "definition": view[1]} for view in self.cursor.fetchall()
+            {"name": view[0], "definition": view[1]}
+            for view in self.cursor.fetchall()
         ]
         logger.info(f"Found {len(views)} views.")
         return views
