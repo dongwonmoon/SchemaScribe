@@ -54,6 +54,15 @@ class BaseConnector(ABC):
         pass
 
     @abstractmethod
+    def get_views(self) -> List[Dict[str, str]]:
+        """Retrives a List of views and their definitions."""
+
+    @abstractmethod
+    def get_foreign_keys(self) -> List[Dict[str, str]]:
+        """Retrieves all foreign key relationships in the database."""
+        pass
+
+    @abstractmethod
     def close(self):
         """Closes the database connection."""
         pass

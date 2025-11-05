@@ -12,6 +12,29 @@ class MarkdownWriter(BaseWriter):
     Handles writing the generated database catalog to a Markdown file.
     """
 
+    def _generate_erd_mermaid(self, foreign_keys: List[Dict[str, str]]):
+        """Helper function to convert FK list to Mermaid ERD code."""
+        if not foreign_keys:
+            return "No foreign key relationships found."
+
+        code = ["```mermaid", "graph TD;"]  # Top-Down graph
+
+        tables = set()
+        for fk in foreign_keys:
+            tables.add(fk["from_table"])
+            tables.add(fk["to_table"])
+
+        for table in tables:
+            code.append(f"    {table}[{table}]")
+        code.append("")
+
+        for fk in foreign_keys:
+            label = f"{fk['from_column']} → {fk['to_column']}"
+            code.append(f'  {fk["from_table"]} --> {fk["to_table"]} : "{label}"')
+
+        code.append("```")
+        return "\n".join(code)
+
     def write(self, catalog_data: Dict[str, List[Dict[str, Any]]], **kwargs):
         """
         Writes the catalog data to a Markdown file in a structured table format.
@@ -37,27 +60,51 @@ class MarkdownWriter(BaseWriter):
                 # Write the main title of the Markdown file
                 f.write(f"# 📁 Data Catalog for {db_profile_name}\n")
 
-                # Iterate over each table in the catalog data
-                for table_name, columns in catalog_data.items():
-                    f.write(f"\n## 📄 Table: `{table_name}`\n\n")
-                    # Write the header of the column table
-                    f.write(
-                        "| Column Name | Data Type | AI-Generated Description |\n"
-                    )
-                    f.write("| :--- | :--- | :--- |\n")
+                f.write("\n## 🚀 Entity Relationship Diagram (ERD)\n\n")
+                foreign_keys = catalog_data.get("foreign_keys", [])
+                mermaid_code = self._generate_erd_mermaid(foreign_keys)
+                f.write(mermaid_code + "\n")
 
-                    # Write a row for each column
-                    for column in columns:
-                        col_name = column["name"]
-                        col_type = column["type"]
-                        description = column["description"]
+                f.write("\n## 🔎 Views\n\n")
+                views = catalog_data.get("views", [])
+                if not views:
+                    f.write("No views found in this database.\n")
+                else:
+                    for view in views:
+                        f.write(f"### 📄 View: `{view['name']}`\n\n")
+                        f.write("**AI-Generated Summary:**\n")
                         f.write(
-                            f"| `{col_name}` | `{col_type}` | {description} |\n"
+                            f"> {view.get('ai_summary', '(No summary available)')}\n\n"
                         )
-            logger.info("Finished writing catalog file.")
+                        f.write("**SQL Definition:**\n")
+                        f.write(f"```sql\n{view.get('definition', 'N/A')}\n```\n\n")
+
+                # Iterate over each table in the catalog data
+                f.write("\n## 🗂️ Tables\n\n")
+                tables = catalog_data.get("tables", [])
+                if not tables:
+                    f.write("No tables found in this database.\n")
+                else:
+                    for table in tables:
+                        table_name = table["name"]
+                        columns = table["columns"]
+
+                        f.write(f"### 📄 Table: `{table_name}`\n\n")
+                        f.write(
+                            "| Column Name | Data Type | AI-Generated Description |\n"
+                        )
+                        f.write("| :--- | :--- | :--- |\n")
+
+                        for column in columns:
+                            col_name = column["name"]
+                            col_type = column["type"]
+                            description = column["description"]
+                            f.write(
+                                f"| `{col_name}` | `{col_type}` | {description} |\n"
+                            )
+            logger.info("Finished writing catalog file (v7.5).")
         except IOError as e:
             logger.error(
                 f"Error writing to file '{output_filename}': {e}", exc_info=True
             )
-            # Re-raise the exception to be handled by the CLI
             raise

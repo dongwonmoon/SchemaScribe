@@ -75,6 +75,16 @@ graph TD
 ```
 """
 
+VIEW_SUMMARY_PROMPT = """
+You are a professional data analyst.
+Below is the SQL query that defines the database view '{view_name}'.
+Summarize in 1-2 sentences what business-level information this view provides.
+
+```sql
+{view_definition}
+```
+"""
+
 # Prompt template for generating a complete YAML metadata block for a dbt column.
 # This prompt asks the LLM to act as a senior data governance expert and generate
 # a YAML snippet containing a description, PII metadata, tags, and appropriate tests.

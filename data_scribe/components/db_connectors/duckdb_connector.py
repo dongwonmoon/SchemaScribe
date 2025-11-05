@@ -17,9 +17,7 @@ class DuckDBConnector(BaseConnector):
         try:
             self.file_path_pattern = db_params.get("path")
             if not self.file_path_pattern:
-                raise ValueError(
-                    "Missing 'path' parameter for DuckDBConnector."
-                )
+                raise ValueError("Missing 'path' parameter for DuckDBConnector.")
 
             self.connection = duckdb.connect(database=":memory:")
 
@@ -54,9 +52,57 @@ class DuckDBConnector(BaseConnector):
 
         except Exception as e:
             logger.error(f"Failed to fetch columns for table {table_name}: {e}")
+            raise RuntimeError(f"Failed to fetch columns for table {table_name}: {e}")
+
+    def get_views(self) -> List[Dict[str, str]]:
+        """Retrieves a list of all views (in-memory or attached)."""
+        if not self.connection:
             raise RuntimeError(
-                f"Failed to fetch columns for table {table_name}: {e}"
+                "Database connection not established. Call connect() first."
             )
+
+        logger.info("Fetching views from DuckDB.")
+        self.connection.execute("SELECT view_name, sql FROM duckdb_views();")
+        views = [
+            {"name": view[0], "definition": view[1]}
+            for view in self.connection.fetchall()
+        ]
+        logger.info(f"Found {len(views)} views.")
+        return views
+
+    def get_foreign_keys(self) -> List[Dict[str, str]]:
+        """
+        Retrieves all foreign key relationships.
+        """
+        if not self.connection:
+            raise RuntimeError(
+                "Database connection not established. Call connect() first."
+            )
+
+        logger.info("Fetching foreign key relationships from DuckDB...")
+        foreign_keys = []
+        try:
+            self.connection.execute("SELECT * FROM pragma_foreign_keys();")
+            fk_results = self.connection.fetchall()
+
+            fk_df = self.connection.fetchdf()
+
+            for _, fk in fk_df.iterrows():
+                foreign_keys.append(
+                    {
+                        "from_table": fk["fk_table"],
+                        "from_column": fk["fk_column"],
+                        "to_table": fk["pk_table"],
+                        "to_column": fk["pk_column"],
+                    }
+                )
+        except Exception as e:
+            logger.warning(
+                f"FK lookup fails in DuckDB (normal when file-based scanned): {e}"
+            )
+
+        logger.info(f"Found {len(foreign_keys)} foreign key relationships.")
+        return foreign_keys
 
     def close(self):
         if self.connection:
