@@ -30,6 +30,15 @@ db_connections:
     password: "${MARIADB_PASSWORD}"
     dbname: "production_db"
 
+  prod_snowflake:
+    type: "snowflake"
+    user: "DATA_SCRIBE_USER"
+    password: "${SNOWFLAKE_PASSWORD}"
+    account: "YOUR_ACCOUNT.ap-northeast-2.aws"
+    warehouse: "COMPUTE_WH"
+    database: "ANALYTICS"
+    schema: "PUBLIC"
+
 llm_providers:
   openai_prod:
     provider: "openai"  

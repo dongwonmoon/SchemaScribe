@@ -37,6 +37,7 @@ mariadb = ["mysql-connector-python"]
 google = ["google-generativeai"]
 ollama = ["ollama"]
 confluence = ["atlassian-python-api"]
+snowflake = ["snowflake-connector-python"]
 
 all = [
     "psycopg2-binary",

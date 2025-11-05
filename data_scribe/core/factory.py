@@ -15,6 +15,7 @@ from data_scribe.components.db_connectors import (
     PostgresConnector,
     MariaDBConnector,
     DuckDBConnector,
+    SnowflakeConnector,
 )
 from data_scribe.components.llm_clients import (
     OpenAIClient,
@@ -42,6 +43,7 @@ DB_CONNECTOR_REGISTRY: Dict[str, Type[BaseConnector]] = {
     "mariadb": MariaDBConnector,
     "mysql": MariaDBConnector,
     "duckdb": DuckDBConnector,
+    "snowflake": SnowflakeConnector,
 }
 
 # Registry for LLM clients.
