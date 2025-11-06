@@ -4,17 +4,18 @@ This module provides a concrete implementation of the BaseConnector for Snowflak
 It uses the `snowflake-connector-python` library to handle the connection, schema extraction,
 and other database interactions.
 """
+
 import snowflake.connector
 from typing import List, Dict, Any
 
-from data_scribe.core.interfaces import BaseConnector
+from .sql_base_connector import SqlBaseConnector
 from data_scribe.utils.logger import get_logger
 
 # Initialize a logger for this module
 logger = get_logger(__name__)
 
 
-class SnowflakeConnector(BaseConnector):
+class SnowflakeConnector(SqlBaseConnector):
     """
     Connector for Snowflake data warehouses.
 
@@ -24,10 +25,7 @@ class SnowflakeConnector(BaseConnector):
 
     def __init__(self):
         """Initializes the SnowflakeConnector."""
-        self.connection = None
-        self.cursor = None
-        self.dbname = None
-        self.schema_name = None
+        super().__init__()
 
     def connect(self, db_params: Dict[str, Any]):
         """
@@ -57,9 +55,7 @@ class SnowflakeConnector(BaseConnector):
                 schema=self.schema_name,
             )
             self.cursor = self.connection.cursor()
-            logger.info(
-                f"Successfully connected to Snowflake DB '{self.dbname}'."
-            )
+            logger.info(f"Successfully connected to Snowflake DB '{self.dbname}'.")
         except Exception as e:
             logger.error(f"Snowflake connection failed: {e}", exc_info=True)
             raise ConnectionError(f"Snowflake connection failed: {e}")
@@ -73,7 +69,6 @@ class SnowflakeConnector(BaseConnector):
         """
         if not self.cursor:
             raise RuntimeError("Must connect to the DB first.")
-
         logger.info(f"Fetching tables from schema: {self.schema_name}")
 
         query = f"""
@@ -82,7 +77,6 @@ class SnowflakeConnector(BaseConnector):
             WHERE table_schema = %s AND table_type = 'BASE TABLE';
         """
         self.cursor.execute(query, (self.schema_name,))
-
         tables = [table[0] for table in self.cursor.fetchall()]
         logger.info(f"Found {len(tables)} tables.")
         return tables
@@ -101,15 +95,12 @@ class SnowflakeConnector(BaseConnector):
             raise RuntimeError("Must connect to the DB first.")
 
         query = f"""
-            SELECT column_name, data_type 
-            FROM "{self.dbname}".information_schema.columns 
+            SELECT column_name, data_type
+            FROM "{self.dbname}".information_schema.columns
             WHERE table_schema = %s AND table_name = %s;
         """
         self.cursor.execute(query, (self.schema_name, table_name))
-
-        columns = [
-            {"name": col[0], "type": col[1]} for col in self.cursor.fetchall()
-        ]
+        columns = [{"name": col[0], "type": col[1]} for col in self.cursor.fetchall()]
         logger.info(f"Found {len(columns)} columns in table {table_name}.")
         return columns
 
@@ -124,15 +115,13 @@ class SnowflakeConnector(BaseConnector):
             raise RuntimeError("Must connect to the DB first.")
 
         query = f"""
-            SELECT table_name, view_definition 
-            FROM "{self.dbname}".information_schema.views 
+            SELECT table_name, view_definition
+            FROM "{self.dbname}".information_schema.views
             WHERE table_schema = %s;
         """
         self.cursor.execute(query, (self.schema_name,))
-
         views = [
-            {"name": view[0], "definition": view[1]}
-            for view in self.cursor.fetchall()
+            {"name": view[0], "definition": view[1]} for view in self.cursor.fetchall()
         ]
         logger.info(f"Found {len(views)} views.")
         return views
@@ -156,14 +145,5 @@ class SnowflakeConnector(BaseConnector):
                     "to_column": fk[3],
                 }
             )
-
         logger.info(f"Found {len(foreign_keys)} foreign key relationships.")
         return foreign_keys
-
-    def close(self):
-        """Closes the Snowflake cursor and connection."""
-        if self.cursor:
-            self.cursor.close()
-        if self.connection:
-            self.connection.close()
-        logger.info("Snowflake connection closed.")

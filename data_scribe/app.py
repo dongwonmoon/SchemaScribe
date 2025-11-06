@@ -72,7 +72,7 @@ def scan_db(
     """
     Scans a database schema, generates a data catalog using an LLM, and writes it to a specified output.
     """
-    DbtWorkflow(
+    DbWorkflow(
         config_path=config_path,
         db_profile=db_profile,
         llm_profile=llm_profile,

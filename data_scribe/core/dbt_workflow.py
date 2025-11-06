@@ -1,3 +1,9 @@
+"""
+This module defines the workflow for the 'dbt' command.
+
+It encapsulates the logic for parsing a dbt project, generating a catalog,
+and writing or updating dbt documentation, orchestrated by the `DbtWorkflow` class.
+"""
 import typer
 from data_scribe.core.factory import get_writer
 from data_scribe.core.dbt_catalog_generator import DbtCatalogGenerator
@@ -12,6 +18,13 @@ logger = get_logger(__name__)
 
 
 class DbtWorkflow:
+    """
+    Manages the entire workflow for the 'dbt' command.
+
+    This class is responsible for loading configuration, initializing components,
+    generating the dbt catalog, and handling the different output modes like
+    writing to a file, updating dbt YAML files, or running a CI check.
+    """
 
     def __init__(
         self,
@@ -22,6 +35,17 @@ class DbtWorkflow:
         update_yaml: bool,
         check: bool,
     ):
+        """
+        Initializes the DbtWorkflow with parameters from the CLI.
+
+        Args:
+            dbt_project_dir: The path to the dbt project directory.
+            llm_profile: The name of the LLM profile to use.
+            config_path: The path to the configuration file.
+            output_profile: The name of the output profile to use.
+            update_yaml: Flag to update dbt schema.yml files directly.
+            check: Flag to run in CI mode to check for outdated documentation.
+        """
         self.dbt_project_dir = dbt_project_dir
         self.llm_profile_name = llm_profile
         self.config_path = config_path
@@ -31,6 +55,7 @@ class DbtWorkflow:
         self.config = load_and_validate_config(self.config_path)
 
     def run(self):
+        """Executes the dbt scanning and documentation workflow."""
         llm_profile_name = self.llm_profile_name or self.config.get("default", {}).get(
             "llm"
         )

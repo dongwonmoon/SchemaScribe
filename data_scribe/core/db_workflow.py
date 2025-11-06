@@ -1,3 +1,9 @@
+"""
+This module defines the workflow for the 'db' command.
+
+It encapsulates the logic for connecting to a database, generating a catalog,
+and writing the output, orchestrated by the `DbWorkflow` class.
+"""
 import typer
 
 from data_scribe.core.factory import get_db_connector, get_writer
@@ -9,6 +15,14 @@ logger = get_logger(__name__)
 
 
 class DbWorkflow:
+    """
+    Manages the entire workflow for the 'db' command.
+
+    This class is responsible for loading configuration, initializing components
+    (database connector, LLM client), generating the data catalog, and writing
+    the result to the specified output.
+    """
+
     def __init__(
         self,
         config_path: str,
@@ -16,6 +30,15 @@ class DbWorkflow:
         llm_profile: str | None,
         output_profile: str | None,
     ):
+        """
+        Initializes the DbWorkflow with parameters from the CLI.
+
+        Args:
+            config_path: The path to the configuration file.
+            db_profile: The name of the database profile to use.
+            llm_profile: The name of the LLM profile to use.
+            output_profile: The name of the output profile to use.
+        """
         self.config_path = config_path
         self.db_profile_name = db_profile
         self.llm_profile_name = llm_profile
@@ -23,6 +46,7 @@ class DbWorkflow:
         self.config = load_and_validate_config(self.config_path)
 
     def run(self):
+        """Executes the database scanning and documentation workflow."""
         # Determine which database and LLM profiles to use
         db_profile_name = self.db_profile_name or self.config.get("default", {}).get(
             "db"
