@@ -1,3 +1,9 @@
+"""
+This module defines a base class for SQL-based database connectors that use an information schema.
+
+It abstracts the common logic for fetching metadata (tables, columns, views, foreign keys)
+that is shared across many SQL databases like PostgreSQL, MySQL, and MariaDB.
+"""
 from abc import abstractmethod
 from typing import List, Dict, Any
 
@@ -8,7 +14,17 @@ logger = get_logger(__name__)
 
 
 class SqlBaseConnector(BaseConnector):
+    """
+    An abstract base class for connectors that rely on an `information_schema`.
+
+    This class provides default implementations for `get_tables`, `get_columns`,
+    `get_views`, and `get_foreign_keys` based on standard `information_schema`
+    queries. Connectors for specific SQL databases can inherit from this class
+    and only need to implement the `connect` method and `close` if necessary.
+    """
+
     def __init__(self):
+        """Initializes the SqlBaseConnector."""
         self.connection = None
         self.cursor = None
         self.dbname: str | None = None
@@ -16,9 +32,22 @@ class SqlBaseConnector(BaseConnector):
 
     @abstractmethod
     def connect(self, db_params: Dict[str, Any]):
+        """
+        Abstract method for establishing a database connection.
+        Subclasses must implement this method.
+        """
         pass
 
     def get_tables(self) -> List[str]:
+        """
+        Retrieves a list of table names from the information_schema.
+
+        Returns:
+            A list of table names in the current schema.
+
+        Raises:
+            RuntimeError: If the database connection is not established.
+        """
         if not self.cursor or not self.schema_name:
             raise RuntimeError("Must connect to the DB first")
 
@@ -36,6 +65,18 @@ class SqlBaseConnector(BaseConnector):
         return tables
 
     def get_columns(self, table_name: str) -> List[Dict[str, str]]:
+        """
+        Retrieves column information for a given table from the information_schema.
+
+        Args:
+            table_name: The name of the table to inspect.
+
+        Returns:
+            A list of dictionaries, each representing a column with its name and type.
+
+        Raises:
+            RuntimeError: If the database connection is not established.
+        """
         if not self.cursor or not self.schema_name:
             raise RuntimeError("Must connect to the DB first and set schema_name.")
 
@@ -53,6 +94,15 @@ class SqlBaseConnector(BaseConnector):
         return columns
 
     def get_views(self) -> List[Dict[str, str]]:
+        """
+        Retrieves a list of views and their definitions from the information_schema.
+
+        Returns:
+            A list of dictionaries, each representing a view with its name and definition.
+
+        Raises:
+            RuntimeError: If the database connection is not established.
+        """
         if not self.cursor or not self.schema_name:
             raise RuntimeError("Must connect to the DB first and set schema_name.")
 
@@ -72,6 +122,15 @@ class SqlBaseConnector(BaseConnector):
         return views
 
     def get_foreign_keys(self) -> List[Dict[str, str]]:
+        """
+        Retrieves all foreign key relationships from the information_schema.
+
+        Returns:
+            A list of dictionaries, each representing a foreign key relationship.
+
+        Raises:
+            RuntimeError: If the database connection is not established.
+        """
         if not self.cursor or not self.schema_name:
             raise RuntimeError("Must connect to the DB first and set schema_name.")
 
@@ -114,6 +173,7 @@ class SqlBaseConnector(BaseConnector):
         return foreign_keys
 
     def close(self):
+        """Closes the database cursor and connection."""
         if self.cursor:
             self.cursor.close()
             self.cursor = None
