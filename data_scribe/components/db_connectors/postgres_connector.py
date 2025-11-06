@@ -9,6 +9,7 @@ import psycopg2
 from typing import List, Dict, Any
 
 from .sql_base_connector import SqlBaseConnector
+from data_scribe.core.exceptions import ConnectorError
 from data_scribe.utils.logger import get_logger
 
 # Initialize a logger for this module
@@ -54,6 +55,6 @@ class PostgresConnector(SqlBaseConnector):
             logger.error(
                 f"Failed to connect to PostgreSQL database: {e}", exc_info=True
             )
-            raise ConnectionError(
+            raise ConnectorError(
                 f"Failed to connect to PostgreSQL database: {e}"
             ) from e

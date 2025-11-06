@@ -9,6 +9,7 @@ import mysql.connector
 from typing import List, Dict, Any
 
 from .sql_base_connector import SqlBaseConnector
+from data_scribe.core.exceptions import ConnectorError
 from data_scribe.utils.logger import get_logger
 
 logger = get_logger(__name__)
@@ -55,4 +56,4 @@ class MariaDBConnector(SqlBaseConnector):
             logger.info(f"Successfully connected to MariaDB/MySQL DB '{self.dbname}'.")
         except mysql.connector.Error as e:
             logger.error(f"MariaDB/MySQL connection failed: {e}", exc_info=True)
-            raise ConnectionError(f"MariaDB/MySQL connection failed: {e}") from e
+            raise ConnectorError(f"MariaDB/MySQL connection failed: {e}") from e

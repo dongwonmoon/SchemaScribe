@@ -4,10 +4,12 @@ This module provides a concrete implementation of the BaseConnector for DuckDB.
 It handles connecting to an in-memory DuckDB instance and reading data from
 local or remote files (e.g., Parquet, CSV) specified by a path pattern.
 """
+
 import duckdb
 from typing import List, Dict, Any
 
 from data_scribe.core.interfaces import BaseConnector
+from data_scribe.core.exceptions import ConnectorError
 from data_scribe.utils.logger import get_logger
 
 # Initialize a logger for this module
@@ -43,9 +45,7 @@ class DuckDBConnector(BaseConnector):
         try:
             self.file_path_pattern = db_params.get("path")
             if not self.file_path_pattern:
-                raise ValueError(
-                    "Missing 'path' parameter for DuckDBConnector."
-                )
+                raise ValueError("Missing 'path' parameter for DuckDBConnector.")
 
             # Connect to an in-memory DuckDB database
             self.connection = duckdb.connect(database=":memory:")
@@ -57,7 +57,7 @@ class DuckDBConnector(BaseConnector):
             logger.info("Successfully connected to DuckDB.")
         except Exception as e:
             logger.error(f"Failed to connect to DuckDB: {e}")
-            raise ConnectionError(f"Failed to connect to DuckDB: {e}")
+            raise ConnectorError(f"Failed to connect to DuckDB: {e}")
 
     def get_tables(self) -> List[str]:
         """
@@ -103,9 +103,7 @@ class DuckDBConnector(BaseConnector):
 
         except Exception as e:
             logger.error(f"Failed to fetch columns for table {table_name}: {e}")
-            raise RuntimeError(
-                f"Failed to fetch columns for table {table_name}: {e}"
-            )
+            raise RuntimeError(f"Failed to fetch columns for table {table_name}: {e}")
 
     def get_views(self) -> List[Dict[str, str]]:
         """Retrieves a list of all views (in-memory or attached)."""

@@ -4,8 +4,10 @@ This module provides a concrete implementation of the BaseLLMClient for Google's
 It handles the initialization of the Google GenAI client, sending prompts to the specified model,
 and returning the generated text descriptions.
 """
+
 import google.generativeai as genai
 from data_scribe.core.interfaces import BaseLLMClient
+from data_scribe.core.exceptions import LLMClientError, ConfigError
 from data_scribe.utils.config import settings
 from data_scribe.utils.logger import get_logger
 
@@ -33,7 +35,7 @@ class GoogleGenAIClient(BaseLLMClient):
         api_key = settings.google_api_key
         if not api_key:
             logger.error("GOOGLE_API_KEY environment variable not set.")
-            raise ValueError(
+            raise ConfigError(
                 "GOOGLE_API_KEY must be set in the .env file to use GoogleGenAIClient."
             )
 
@@ -46,7 +48,7 @@ class GoogleGenAIClient(BaseLLMClient):
             logger.error(
                 f"Failed to initialize Google GenAI client: {e}", exc_info=True
             )
-            raise ValueError(f"Failed to initialize Google GenAI client: {e}")
+            raise ConfigError(f"Failed to initialize Google GenAI client: {e}")
 
     def get_description(self, prompt: str, max_tokens: int) -> str:
         """
@@ -82,4 +84,4 @@ class GoogleGenAIClient(BaseLLMClient):
                 f"Failed to generate description with Google GenAI: {e}",
                 exc_info=True,
             )
-            return "(Google AI generation failed)"
+            raise LLMClientError(f"Google GenAI API call failed: {e}") from e

@@ -5,10 +5,13 @@ It implements the `BaseWriter` interface and is responsible for converting the
 structured dbt catalog data into a human-readable Markdown file. This includes
 model descriptions, column details, and Mermaid lineage charts.
 """
+
 from typing import Dict, List, Any
 
 from data_scribe.utils.logger import get_logger
 from data_scribe.core.interfaces import BaseWriter
+from data_scribe.core.exceptions import WriterError, ConfigError
+
 
 # Initialize a logger for this module
 logger = get_logger(__name__)
@@ -34,7 +37,7 @@ class DbtMarkdownWriter(BaseWriter):
             logger.error(
                 "DbtMarkdownWriter 'write' method missing 'output_filename' or 'project_name'."
             )
-            raise ValueError("Missing required kwargs for DbtMarkdownWriter.")
+            raise ConfigError("Missing required kwargs for DbtMarkdownWriter.")
 
         try:
             with open(output_filename, "w", encoding="utf-8") as f:
@@ -64,9 +67,7 @@ class DbtMarkdownWriter(BaseWriter):
 
                     # Write the header for the column details table
                     f.write("### Column Details\n")
-                    f.write(
-                        "| Column Name | Data Type | AI-Generated Description |\n"
-                    )
+                    f.write("| Column Name | Data Type | AI-Generated Description |\n")
                     f.write("| :--- | :--- | :--- |\n")
 
                     columns = model_data.get("columns", [])
@@ -82,9 +83,7 @@ class DbtMarkdownWriter(BaseWriter):
                         description = ai_data.get(
                             "description", "(AI description failed)"
                         )
-                        f.write(
-                            f"| `{col_name}` | `{col_type}` | {description} |\n"
-                        )
+                        f.write(f"| `{col_name}` | `{col_type}` | {description} |\n")
 
             logger.info("Finished writing dbt catalog file.")
         except IOError as e:
@@ -92,4 +91,4 @@ class DbtMarkdownWriter(BaseWriter):
                 f"Error writing to file '{output_filename}': {e}", exc_info=True
             )
             # Re-raise the exception to be handled by the CLI
-            raise
+            raise WriterError(f"Error writing to file '{output_filename}': {e}") from e

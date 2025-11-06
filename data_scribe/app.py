@@ -12,6 +12,13 @@ import functools
 
 from data_scribe.core.db_workflow import DbWorkflow
 from data_scribe.core.dbt_workflow import DbtWorkflow
+from data_scribe.core.exceptions import (
+    DataScribeError,
+    ConnectorError,
+    ConfigError,
+    LLMClientError,
+    WriterError,
+)
 from data_scribe.utils.logger import get_logger
 
 # Initialize a logger for this module
@@ -33,15 +40,18 @@ def handle_exceptions(func):
     @functools.wraps(func)
     def wrapper(*args, **kwargs):
         try:
-            # Execute the decorated command function
             return func(*args, **kwargs)
-        except (KeyError, ValueError, ConnectionError) as e:
-            # Handle expected application errors gracefully
+        except (ConfigError, ConnectorError, LLMClientError, WriterError) as e:
             logger.error(f"{type(e).__name__}: {e}")
             raise typer.Exit(code=1)
+        except DataScribeError as e:
+            logger.error(
+                f"An unexpected application error occurred: {e}", exc_info=True
+            )
+            raise typer.Exit(code=1)
         except Exception as e:
-            # Handle any unexpected errors to prevent unhandled stack traces
-            logger.error(f"An unexpected error occurred: {e}", exc_info=True)
+            # Handle any unexpected (non-DataScribe) errors
+            logger.error(f"An unknown unexpected error occurred: {e}", exc_info=True)
             raise typer.Exit(code=1)
 
     return wrapper

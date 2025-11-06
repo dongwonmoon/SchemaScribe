@@ -5,10 +5,13 @@ It implements the `BaseWriter` interface and is responsible for converting the
 structured catalog data into a human-readable Markdown file, including tables for
 columns, view definitions, and a Mermaid ERD chart.
 """
+
 from typing import Dict, List, Any
 
 from data_scribe.utils.logger import get_logger
 from data_scribe.core.interfaces import BaseWriter
+from data_scribe.core.exceptions import WriterError, ConfigError
+
 
 # Initialize a logger for this module
 logger = get_logger(__name__)
@@ -51,9 +54,7 @@ class MarkdownWriter(BaseWriter):
 
         for fk in foreign_keys:
             label = f"{fk['from_column']} → {fk['to_column']}"
-            code.append(
-                f'  {fk["from_table"]} --> {fk["to_table"]} : "{label}"'
-            )
+            code.append(f'  {fk["from_table"]} --> {fk["to_table"]} : "{label}"')
 
         code.append("```")
         return "\n".join(code)
@@ -73,7 +74,7 @@ class MarkdownWriter(BaseWriter):
             logger.error(
                 "MarkdownWriter 'write' method missing 'output_filename' or 'db_profile_name'."
             )
-            raise ValueError("Missing required kwargs for MarkdownWriter.")
+            raise ConfigError("Missing required kwargs for MarkdownWriter.")
 
         try:
             with open(output_filename, "w", encoding="utf-8") as f:
@@ -100,9 +101,7 @@ class MarkdownWriter(BaseWriter):
                             f"> {view.get('ai_summary', '(No summary available)')}\n\n"
                         )
                         f.write("**SQL Definition:**\n")
-                        f.write(
-                            f"```sql\n{view.get('definition', 'N/A')}\n```\n\n"
-                        )
+                        f.write(f"```sql\n{view.get('definition', 'N/A')}\n```\n\n")
 
                 # Iterate over each table in the catalog data
                 f.write("\n## 🗂️ Tables\n\n")
@@ -132,4 +131,4 @@ class MarkdownWriter(BaseWriter):
             logger.error(
                 f"Error writing to file '{output_filename}': {e}", exc_info=True
             )
-            raise
+            raise WriterError(f"Error writing to file '{output_filename}': {e}") from e

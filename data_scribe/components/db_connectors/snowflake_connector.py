@@ -9,6 +9,7 @@ import snowflake.connector
 from typing import List, Dict, Any
 
 from .sql_base_connector import SqlBaseConnector
+from data_scribe.core.exceptions import ConnectorError
 from data_scribe.utils.logger import get_logger
 
 # Initialize a logger for this module
@@ -58,7 +59,7 @@ class SnowflakeConnector(SqlBaseConnector):
             logger.info(f"Successfully connected to Snowflake DB '{self.dbname}'.")
         except Exception as e:
             logger.error(f"Snowflake connection failed: {e}", exc_info=True)
-            raise ConnectionError(f"Snowflake connection failed: {e}")
+            raise ConnectorError(f"Snowflake connection failed: {e}")
 
     def get_tables(self) -> List[str]:
         """
