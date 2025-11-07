@@ -105,19 +105,23 @@ class DuckDBConnector(BaseConnector):
             logger.error(f"Failed to fetch columns for table {table_name}: {e}")
             raise ConnectorError(f"Failed to fetch columns for table {table_name}: {e}")
 
+    def get_views(self) -> List[Dict[str, str]]:
+        """Retrieves DuckDB views and their SQL definitions."""
         if not self.connection:
             raise ConnectorError(
                 "Database connection not established. Call connect() first."
             )
 
-        logger.info("Fetching views from DuckDB.")
-        self.connection.execute("SELECT view_name, sql FROM duckdb_views();")
-        views = [
-            {"name": view[0], "definition": view[1]}
-            for view in self.connection.fetchall()
-        ]
-        logger.info(f"Found {len(views)} views.")
-        return views
+        try:
+            logger.info("Fetching views from DuckDB.")
+            query = "SELECT view_name, sql FROM duckdb_views();"
+            result = self.connection.execute(query).fetchall()
+            views = [{"name": row[0], "definition": row[1]} for row in result]
+            logger.info(f"Found {len(views)} views.")
+            return views
+        except Exception as e:
+            logger.error(f"Failed to fetch views from DuckDB: {e}")
+            raise ConnectorError(f"Failed to fetch views from DuckDB: {e}")
 
     def get_foreign_keys(self) -> List[Dict[str, str]]:
         """
