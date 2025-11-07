@@ -8,7 +8,7 @@ fetching schema information, and using an LLM to generate descriptions for each 
 from typing import List, Dict, Any
 
 from data_scribe.core.interfaces import BaseConnector, BaseLLMClient
-from data_scribe.prompts import COLUMN_DESCRIPTION_PROMPT
+from data_scribe.prompts import COLUMN_DESCRIPTION_PROMPT, VIEW_SUMMARY_PROMPT
 from data_scribe.utils.logger import get_logger
 
 # Initialize a logger for this module
@@ -50,7 +50,7 @@ class CatalogGenerator:
             and the values are lists of dictionaries, where each dictionary
             represents a column with its name, type, and AI-generated description.
         """
-        catalog_data = {}
+        catalog_data = {"tables": [], "views": [], "foreign_keys": []}
         logger.info(f"Fetching tables for database profile: {db_profile_name}")
         # Retrieve the list of table names from the database
         tables = self.db_connector.get_tables()
@@ -90,7 +90,38 @@ class CatalogGenerator:
                     }
                 )
             # Add the table and its enriched columns to the catalog
-            catalog_data[table_name] = enriched_columns
+            catalog_data["tables"].append(
+                {"name": table_name, "columns": enriched_columns}
+            )
             logger.info(f"Finished processing table: {table_name}")
+
+        logger.info("Fetching views...")
+        views = self.db_connector.get_views()
+        enriched_views = []
+
+        for view in views:
+            view_name = view["name"]
+            view_sql = view["definition"]
+            logger.info(f"  - Generating description for view: {view_name}")
+
+            prompt = VIEW_SUMMARY_PROMPT.format(
+                view_name=view_name, view_definition=view_sql
+            )
+            summary = self.llm_client.get_description(prompt, max_tokens=200)
+
+            enriched_views.append(
+                {
+                    "name": view_name,
+                    "definition": view_sql,
+                    "ai_summary": summary,
+                }
+            )
+        catalog_data["views"] = enriched_views
+
+        logger.info("Fetching foreign keys...")
+        foreign_keys = self.db_connector.get_foreign_keys()
+        catalog_data["foreign_keys"] = foreign_keys
+
+        logger.info("Catalog generation completed.")
 
         return catalog_data

@@ -9,6 +9,7 @@ import sqlite3
 from typing import List, Dict, Any
 
 from data_scribe.core.interfaces import BaseConnector
+from data_scribe.core.exceptions import ConnectorError
 from data_scribe.utils.logger import get_logger
 
 # Initialize a logger for this module
@@ -51,12 +52,11 @@ class SQLiteConnector(BaseConnector):
             self.cursor = self.connection.cursor()
             logger.info("Successfully connected to SQLite database.")
         except sqlite3.Error as e:
-            logger.error(
-                f"Failed to connect to SQLite database: {e}", exc_info=True
-            )
-            raise ConnectionError(
-                f"Failed to connect to SQLite database: {e}"
-            ) from e
+            logger.error(f"Failed to connect to SQLite database: {e}", exc_info=True)
+            raise ConnectorError(f"Failed to connect to SQLite database: {e}") from e
+        except Exception as e:
+            logger.error(f"An unexpected error occurred: {e}", exc_info=True)
+            raise ConnectorError(f"An unexpected error occurred: {e}") from e
 
     def get_tables(self) -> List[str]:
         """Retrieves a list of all table names in the connected database.
@@ -65,18 +65,16 @@ class SQLiteConnector(BaseConnector):
             A list of strings, where each string is a table name.
 
         Raises:
-            RuntimeError: If the database connection has not been established.
+            ConnectorError: If the database connection has not been established.
         """
         if not self.cursor:
-            raise RuntimeError(
+            raise ConnectorError(
                 "Database connection not established. Call connect() first."
             )
 
         logger.info("Fetching table names from the database.")
         # Query the sqlite_master table to get the names of all tables
-        self.cursor.execute(
-            "SELECT name FROM sqlite_master WHERE type='table';"
-        )
+        self.cursor.execute("SELECT name FROM sqlite_master WHERE type='table';")
         # Extract the table names from the query result
         tables = [table[0] for table in self.cursor.fetchall()]
         logger.info(f"Found {len(tables)} tables.")
@@ -88,15 +86,11 @@ class SQLiteConnector(BaseConnector):
         Args:
             table_name: The name of the table to inspect.
 
-        Returns:
-            A list of dictionaries, where each dictionary represents a column
-            and contains its name and data type.
-
         Raises:
-            RuntimeError: If the database connection has not been established.
+            ConnectorError: If the database connection has not been established.
         """
         if not self.cursor:
-            raise RuntimeError(
+            raise ConnectorError(
                 "Database connection not established. Call connect() first."
             )
 
@@ -105,11 +99,59 @@ class SQLiteConnector(BaseConnector):
         self.cursor.execute(f"PRAGMA table_info('{table_name}');")
         # The result of PRAGMA table_info is a tuple: (cid, name, type, notnull, dflt_value, pk)
         # We extract just the name (index 1) and type (index 2).
-        columns = [
-            {"name": col[1], "type": col[2]} for col in self.cursor.fetchall()
-        ]
+        columns = [{"name": col[1], "type": col[2]} for col in self.cursor.fetchall()]
         logger.info(f"Found {len(columns)} columns in table {table_name}.")
         return columns
+
+    def get_views(self) -> List[Dict[str, str]]:
+        """Retrieves a list of all views and their SQL definitions."""
+        if not self.cursor:
+            raise ConnectorError(
+                "Database connection not established. Call connect() first."
+            )
+
+        logger.info("Fetching views from the database.")
+        self.cursor.execute("SELECT name, sql FROM sqlite_master WHERE type='view';")
+        views = [
+            {"name": view[0], "definition": view[1]} for view in self.cursor.fetchall()
+        ]
+        logger.info(f"Found {len(views)} views.")
+        return views
+
+    def get_foreign_keys(self) -> List[Dict[str, str]]:
+        """Retrieves all foreign key relationships in the database."""
+        if not self.cursor:
+            raise ConnectorError(
+                "Database connection not established. Call connect() first."
+            )
+
+        logger.info("Fetching foreign key relationships...")
+        tables = self.get_tables()
+        foreign_keys = []
+
+        for table_name in tables:
+            try:
+                self.cursor.execute(f"PRAGMA foreign_key_list('{table_name}');")
+                fk_results = self.cursor.fetchall()
+                for fk in fk_results:
+                    from_table = table_name
+                    to_table = fk[2]
+                    from_column = fk[3]
+                    to_column = fk[4]
+
+                    foreign_keys.append(
+                        {
+                            "from_table": from_table,
+                            "from_column": from_column,
+                            "to_table": to_table,
+                            "to_column": to_column,
+                        }
+                    )
+            except sqlite3.Error as e:
+                logger.warning(f"Failed to get FKs for table {table_name}: {e}")
+
+        logger.info(f"Found {len(foreign_keys)} foreign key relationships.")
+        return foreign_keys
 
     def close(self):
         """Closes the database connection if it is open."""

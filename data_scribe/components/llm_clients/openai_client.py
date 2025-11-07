@@ -7,6 +7,7 @@ and returning the generated text descriptions.
 
 from openai import OpenAI
 from data_scribe.core.interfaces import BaseLLMClient
+from data_scribe.core.exceptions import LLMClientError, ConfigError
 from data_scribe.utils.config import settings
 from data_scribe.utils.logger import get_logger
 
@@ -35,7 +36,7 @@ class OpenAIClient(BaseLLMClient):
         api_key = settings.openai_api_key
         if not api_key:
             logger.error("OPENAI_API_KEY environment variable not set.")
-            raise ValueError("OPENAI_API_KEY environment variable not set.")
+            raise ConfigError("OPENAI_API_KEY environment variable not set.")
 
         logger.info(f"Initializing OpenAI client with model: {model}")
         # Instantiate the OpenAI client with the API key
@@ -68,8 +69,6 @@ class OpenAIClient(BaseLLMClient):
             logger.info("Successfully received description from OpenAI.")
             return description
         except Exception as e:
-            logger.error(
-                f"Failed to generate AI description: {e}", exc_info=True
-            )
+            logger.error(f"Failed to generate AI description: {e}", exc_info=True)
             # Return a fallback message if the API call fails
-            return "(AI description generation failed)"
+            raise LLMClientError(f"OpenAI API call failed: {e}") from e

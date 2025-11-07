@@ -5,7 +5,15 @@ default:
 db_connections:
   local_sqlite:
     type: "sqlite"     
-    path: "test.db"    
+    path: "test.db" 
+
+  local_files:
+    type: "duckdb"
+    path: "./jaffle_shop/target/*.parquet"
+
+  s3_logs:
+    type: "duckdb"
+    path: "s3://my-log-bucket/logs_2024_*.csv"
 
   dev_postgres:
     type: "postgres"
@@ -22,6 +30,15 @@ db_connections:
     password: "${MARIADB_PASSWORD}"
     dbname: "production_db"
 
+  prod_snowflake:
+    type: "snowflake"
+    user: "DATA_SCRIBE_USER"
+    password: "${SNOWFLAKE_PASSWORD}"
+    account: "YOUR_ACCOUNT.ap-northeast-2.aws"
+    warehouse: "COMPUTE_WH"
+    database: "ANALYTICS"
+    schema: "PUBLIC"
+
 llm_providers:
   openai_prod:
     provider: "openai"  
@@ -35,3 +52,21 @@ llm_providers:
   google_gemini:
     provider: "google"
     model: "gemini-2.5-flash"
+
+output_profiles:
+  default_markdown:
+    type: "dbt-markdown"
+    filename: "dbt_catalog.md"
+
+  default_json:
+    type: "json"
+    filename: "catalog.json"
+
+  dev_confluence_space:
+    type: "confluence"
+    url: "https://YOUR_DOMAIN.atlassian.net"
+    space_key: "YOUR_SPACE_KEY"
+    parent_page_id: "12345678"
+    page_title_prefix: "Data Scribe Catalog"
+    username: "your-email@example.com"
+    api_token: "${CONFLUENCE_API_TOKEN}"
