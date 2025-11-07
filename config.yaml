@@ -42,7 +42,7 @@ db_connections:
 llm_providers:
   openai_prod:
     provider: "openai"  
-    model: "gpt-4o-mini"
+    model: "gpt-3.5-turbo"
 
   local_ollama:
     provider: "ollama"
@@ -55,12 +55,12 @@ llm_providers:
 
 output_profiles:
   default_markdown:
-    type: "dbt-markdown"
-    filename: "dbt_catalog.md"
+    type: "db-markdown"
+    output_filename: "db_catalog.md"
 
   default_json:
     type: "json"
-    filename: "catalog.json"
+    output_filename: "catalog.json"
 
   dev_confluence_space:
     type: "confluence"
