@@ -6,7 +6,7 @@ Data Scribe is a CLI tool that scans your databases and dbt projects, uses AI to
 
 ---
 
-## ✨ The Magic: See it in Action
+## ✨ See it in Action
 
 Stop manually updating YAML files or writing Markdown tables. Let `data-scribe` do the work in seconds.
 
