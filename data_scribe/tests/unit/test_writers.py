@@ -66,9 +66,7 @@ def mock_dbt_catalog_data():
                 {
                     "name": "customer_id",
                     "type": "int",
-                    "ai_generated": {
-                        "description": "Primary key for customers."
-                    },
+                    "ai_generated": {"description": "Primary key for customers."},
                 }
             ],
         }
@@ -93,7 +91,10 @@ def test_markdown_writer_write(tmp_path, mock_db_catalog_data):
 
     assert "# 📁 Data Catalog for test_db" in content
     assert "## 🚀 Entity Relationship Diagram (ERD)" in content
-    assert "orders --> users" in content  # Mermaid syntax
+    # assert "orders --> users" in content  # Mermaid syntax <-- [OLD] Fails
+    assert (
+        "orders ||--o{ users" in content
+    )  # Mermaid erDiagram syntax <-- [NEW] Correct
     assert "## 🔎 Views" in content
     assert "### 📄 View: `user_views`" in content
     assert "> A summary of the view." in content
@@ -134,9 +135,7 @@ def dbt_project(tmp_path):
         "models": [
             {
                 "name": "customers",
-                "columns": [
-                    {"name": "customer_id", "tests": ["unique", "not_null"]}
-                ],
+                "columns": [{"name": "customer_id", "tests": ["unique", "not_null"]}],
             }
         ],
     }
@@ -196,9 +195,7 @@ def test_dbt_yaml_writer_check_mode_changes_needed(dbt_project):
     """Tests check mode when changes are needed."""
     writer = DbtYamlWriter(dbt_project_dir=dbt_project, check_mode=True)
     # Catalog data has new descriptions to add
-    catalog = {
-        "customers": {"model_description": "A new description.", "columns": []}
-    }
+    catalog = {"customers": {"model_description": "A new description.", "columns": []}}
     updates_needed = writer.update_yaml_files(catalog)
     assert updates_needed
 
@@ -213,13 +210,9 @@ def test_dbt_yaml_writer_malformed_yaml(dbt_project):
         )  # Invalid YAML indentation
 
     writer = DbtYamlWriter(dbt_project_dir=dbt_project)
-    catalog = {
-        "customers": {"model_description": "A description.", "columns": []}
-    }
+    catalog = {"customers": {"model_description": "A description.", "columns": []}}
 
-    with pytest.raises(
-        WriterError, match=f"Failed to parse YAML file: {schema_file}"
-    ):
+    with pytest.raises(WriterError, match=f"Failed to parse YAML file: {schema_file}"):
         writer.update_yaml_files(catalog)
 
 
@@ -227,14 +220,10 @@ def test_dbt_yaml_writer_malformed_yaml(dbt_project):
 
 
 @patch("data_scribe.components.writers.confluence_writer.Confluence")
-def test_confluence_writer_db_write(
-    mock_confluence_constructor, mock_db_catalog_data
-):
+def test_confluence_writer_db_write(mock_confluence_constructor, mock_db_catalog_data):
     """Tests that ConfluenceWriter correctly handles standard DB catalog data."""
     mock_confluence_instance = MagicMock()
-    mock_confluence_instance.get_page_id.return_value = (
-        "123456"  # Simulate page exists
-    )
+    mock_confluence_instance.get_page_id.return_value = "123456"  # Simulate page exists
     mock_confluence_constructor.return_value = mock_confluence_instance
 
     writer = ConfluenceWriter()
@@ -262,9 +251,7 @@ def test_confluence_writer_dbt_write(
 ):
     """Tests that ConfluenceWriter correctly handles dbt catalog data."""
     mock_confluence_instance = MagicMock()
-    mock_confluence_instance.get_page_id.return_value = (
-        "789012"  # Simulate page exists
-    )
+    mock_confluence_instance.get_page_id.return_value = "789012"  # Simulate page exists
     mock_confluence_constructor.return_value = mock_confluence_instance
 
     writer = ConfluenceWriter()

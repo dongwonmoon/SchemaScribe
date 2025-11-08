@@ -50,12 +50,8 @@ def test_db_workflow_end_to_end(
 
     # 3. Check for table and column names
     assert "### 📄 Table: `users`" in content
-    assert (
-        "| `id` | `INTEGER` | This is an AI-generated description. |" in content
-    )
-    assert (
-        "| `email` | `TEXT` | This is an AI-generated description. |" in content
-    )
+    assert "| `id` | `INTEGER` | This is an AI-generated description. |" in content
+    assert "| `email` | `TEXT` | This is an AI-generated description. |" in content
 
     # 4. Check for view information
     assert "### 📄 View: `user_orders`" in content
@@ -64,8 +60,9 @@ def test_db_workflow_end_to_end(
 
     # 5. Check for ERD information
     assert "## 🚀 Entity Relationship Diagram (ERD)" in content
-    assert "orders --> users" in content
-    assert "orders --> products" in content
+    assert "erDiagram" in content
+    assert "orders ||--o{ users" in content
+    assert "orders ||--o{ products" in content
 
     # 6. Verify the LLM client was called
     # The number of calls depends on tables, columns, and views.
@@ -111,9 +108,7 @@ def test_db_workflow_end_to_end_with_profiling(
 
     # 3. Check for table and column names
     assert "### 📄 Table: `users`" in content
-    assert (
-        "| `id` | `INTEGER` | This is an AI-generated description. |" in content
-    )
+    assert "| `id` | `INTEGER` | This is an AI-generated description. |" in content
 
     # ... (existing checks for view and ERD) ...
     assert "### 📄 View: `user_orders`" in content
