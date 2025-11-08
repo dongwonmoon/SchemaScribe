@@ -1,0 +1,46 @@
+name: "Data Scribe Unit Tests"
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    
+    services:
+      ollama:
+        image: ollama/ollama
+        ports:
+          - 11434:11434
+
+    steps:
+    - name: "Checkout Code"
+      uses: actions/checkout@v4
+
+    - name: "Set up Python 3.11"
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.11'
+
+    - name: "Install Dependencies"
+      run: |
+        pip install -r requirements.txt
+        pip install pytest
+        pip install dbt-core
+
+    - name: "Setup Ollama (Pull Model)"
+      run: |
+        ollama pull llama3
+
+    - name: "Checkout jaffle_shop (for dbt test)"
+      uses: actions/checkout@v4
+      with:
+        repository: 'dbt-labs/jaffle_shop'
+        path: 'jaffle_shop'
+
+    - name: "Run Pytest"
+      run: |
+        pytest tests/

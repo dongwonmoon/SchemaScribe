@@ -147,7 +147,7 @@ class DbtYamlWriter:
                                 for key, ai_value in ai_data_dict.items():
                                     if not column_config.get(key):
                                         logger.info(
-                                            f"    - Updating '{node_name}.{column_name}' with new key: '{key}'"
+                                            f"- Updating '{node_name}.{column_name}' with new key: '{key}'"
                                         )
                                         column_config[key] = ai_value
                                         file_updated = True
