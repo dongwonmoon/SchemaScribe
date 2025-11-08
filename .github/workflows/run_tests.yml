@@ -61,6 +61,6 @@ jobs:
 
     - name: "Run Pytest"
       run: |
-        pytest tests/
+        pytest data_scribe/tests/
       env: 
         OLLAMA_HOST: "http://localhost:11434"
