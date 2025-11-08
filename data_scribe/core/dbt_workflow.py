@@ -4,6 +4,7 @@ This module defines the workflow for the 'dbt' command.
 It encapsulates the logic for parsing a dbt project, generating a catalog,
 and writing or updating dbt documentation, orchestrated by the `DbtWorkflow` class.
 """
+
 from typing import Optional
 import typer
 

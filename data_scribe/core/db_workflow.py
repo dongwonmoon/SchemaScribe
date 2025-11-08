@@ -4,6 +4,7 @@ This module defines the workflow for the 'db' command.
 It encapsulates the logic for connecting to a database, generating a catalog,
 and writing the output, orchestrated by the `DbWorkflow` class.
 """
+
 from typing import Optional
 import typer
 

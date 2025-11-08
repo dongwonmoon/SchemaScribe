@@ -80,9 +80,13 @@ class SqlBaseConnector(BaseConnector):
             ConnectorError: If the database connection is not established.
         """
         if not self.cursor or not self.schema_name:
-            raise ConnectorError("Must connect to the DB first and set schema_name.")
+            raise ConnectorError(
+                "Must connect to the DB first and set schema_name."
+            )
 
-        logger.info(f"Fetching columns for table: {self.schema_name}.{table_name}")
+        logger.info(
+            f"Fetching columns for table: {self.schema_name}.{table_name}"
+        )
 
         query = """
             SELECT column_name, data_type
@@ -91,7 +95,9 @@ class SqlBaseConnector(BaseConnector):
         """
 
         self.cursor.execute(query, (self.schema_name, table_name))
-        columns = [{"name": col[0], "type": col[1]} for col in self.cursor.fetchall()]
+        columns = [
+            {"name": col[0], "type": col[1]} for col in self.cursor.fetchall()
+        ]
         logger.info(f"Found {len(columns)} columns in table {table_name}.")
         return columns
 
@@ -106,7 +112,9 @@ class SqlBaseConnector(BaseConnector):
             ConnectorError: If the database connection is not established.
         """
         if not self.cursor or not self.schema_name:
-            raise ConnectorError("Must connect to the DB first and set schema_name.")
+            raise ConnectorError(
+                "Must connect to the DB first and set schema_name."
+            )
 
         logger.info(f"Fetching views from schema: {self.schema_name}")
 
@@ -118,7 +126,8 @@ class SqlBaseConnector(BaseConnector):
 
         self.cursor.execute(query, (self.schema_name,))
         views = [
-            {"name": view[0], "definition": view[1]} for view in self.cursor.fetchall()
+            {"name": view[0], "definition": view[1]}
+            for view in self.cursor.fetchall()
         ]
         logger.info(f"Found {len(views)} views.")
         return views
@@ -134,7 +143,9 @@ class SqlBaseConnector(BaseConnector):
             ConnectorError: If the database connection is not established.
         """
         if not self.cursor or not self.schema_name:
-            raise ConnectorError("Must connect to the DB first and set schema_name.")
+            raise ConnectorError(
+                "Must connect to the DB first and set schema_name."
+            )
 
         logger.info(
             f"Fetching foreign key relationships for schema: {self.schema_name}"
@@ -174,12 +185,16 @@ class SqlBaseConnector(BaseConnector):
         logger.info(f"Found {len(foreign_keys)} foreign key relationships.")
         return foreign_keys
 
-    def get_column_profile(self, table_name: str, column_name: str) -> Dict[str, Any]:
+    def get_column_profile(
+        self, table_name: str, column_name: str
+    ) -> Dict[str, Any]:
         """
         Generates profile stats for a column using standard ANSI SQL.
         """
         if not self.cursor or not self.schema_name:
-            raise ConnectorError("Must connect to the DB first and set schema_name.")
+            raise ConnectorError(
+                "Must connect to the DB first and set schema_name."
+            )
 
         query = f"""
         SELECT

@@ -132,9 +132,7 @@ class MarkdownWriter(BaseWriter):
                             f.write(
                                 f"| `{col_name}` | `{col_type}` | {description} |\n"
                             )
-            logger.info(
-                f"Successfully wrote catalog to '{output_filename}'."
-            )
+            logger.info(f"Successfully wrote catalog to '{output_filename}'.")
         except IOError as e:
             logger.error(
                 f"Error writing to file '{output_filename}': {e}", exc_info=True

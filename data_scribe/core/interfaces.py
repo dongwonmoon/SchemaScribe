@@ -98,7 +98,9 @@ class BaseConnector(ABC):
         pass
 
     @abstractmethod
-    def get_column_profile(self, table_name: str, column_name: str) -> Dict[str, Any]:
+    def get_column_profile(
+        self, table_name: str, column_name: str
+    ) -> Dict[str, Any]:
         """
         Retrieves profiling statistics for a specific column.
 

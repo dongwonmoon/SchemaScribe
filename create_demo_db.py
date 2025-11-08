@@ -10,8 +10,12 @@ conn = sqlite3.connect(DB_FILE)
 cursor = conn.cursor()
 
 # 1. 테이블 생성 (FK 포함)
-cursor.execute("CREATE TABLE users (id INTEGER PRIMARY KEY, name TEXT, email TEXT)")
-cursor.execute("CREATE TABLE products (id INTEGER PRIMARY KEY, name TEXT, price REAL)")
+cursor.execute(
+    "CREATE TABLE users (id INTEGER PRIMARY KEY, name TEXT, email TEXT)"
+)
+cursor.execute(
+    "CREATE TABLE products (id INTEGER PRIMARY KEY, name TEXT, price REAL)"
+)
 cursor.execute(
     """
     CREATE TABLE orders (
@@ -40,7 +44,9 @@ cursor.execute(
 cursor.execute(
     "INSERT INTO users (name, email) VALUES ('천재 사용자', 'genius@example.com')"
 )
-cursor.execute("INSERT INTO products (name, price) VALUES ('Data Scribe Pro', 99.9)")
+cursor.execute(
+    "INSERT INTO products (name, price) VALUES ('Data Scribe Pro', 99.9)"
+)
 
 conn.commit()
 conn.close()
