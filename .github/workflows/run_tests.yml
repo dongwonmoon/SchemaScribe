@@ -31,9 +31,27 @@ jobs:
         pip install pytest
         pip install dbt-core
 
+    - name: "Install Ollama CLI on Host Runner"
+      run: |
+        curl -fsSL https://ollama.com/install.sh | sh
+
     - name: "Setup Ollama (Pull Model)"
       run: |
+        export OLLAMA_HOST="http://localhost:11434"
+        
+        n=0
+        until [ "$n" -ge 30 ]; do
+          if curl -s http://localhost:11434/ > /dev/null; then
+            echo "Ollama service is up!"
+            break
+          fi
+          n=$((n+1))
+          sleep 1
+        done
+
+        echo "Pulling llama3 model..."
         ollama pull llama3
+        echo "Model pulled successfully."
 
     - name: "Checkout jaffle_shop (for dbt test)"
       uses: actions/checkout@v4
@@ -44,3 +62,5 @@ jobs:
     - name: "Run Pytest"
       run: |
         pytest tests/
+      env: 
+        OLLAMA_HOST: "http://localhost:11434"
