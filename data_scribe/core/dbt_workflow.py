@@ -4,8 +4,9 @@ This module defines the workflow for the 'dbt' command.
 It encapsulates the logic for parsing a dbt project, generating a catalog,
 and writing or updating dbt documentation, orchestrated by the `DbtWorkflow` class.
 """
-
+from typing import Optional
 import typer
+
 from data_scribe.core.factory import get_writer
 from data_scribe.core.dbt_catalog_generator import DbtCatalogGenerator
 from data_scribe.components.writers import DbtYamlWriter
@@ -30,9 +31,9 @@ class DbtWorkflow:
     def __init__(
         self,
         dbt_project_dir: str,
-        llm_profile: str | None,
+        llm_profile: Optional[str],
         config_path: str,
-        output_profile: str | None,
+        output_profile: Optional[str],
         update_yaml: bool,
         check: bool,
     ):
@@ -56,12 +57,24 @@ class DbtWorkflow:
         self.config = load_and_validate_config(self.config_path)
 
     def run(self):
-        """Executes the dbt scanning and documentation workflow."""
+        """
+        Executes the dbt scanning and documentation workflow.
+
+        This method orchestrates the following steps:
+        1. Initializes the LLM client.
+        2. Generates a catalog of the dbt project.
+        3. Executes one of the output modes based on CLI flags:
+           - `--check`: Verifies if dbt documentation is up-to-date and exits with an error if not.
+           - `--update`: Directly updates the dbt `schema.yml` files with generated content.
+           - `--output`: Writes the generated catalog to a file (e.g., Markdown) using a specified profile.
+        """
+        # 1. Initialize the LLM client from the specified or default profile.
         llm_profile_name = self.llm_profile_name or self.config.get(
             "default", {}
         ).get("llm")
         llm_client = init_llm(self.config, llm_profile_name)
 
+        # 2. Generate the dbt project catalog.
         logger.info(
             f"Generating dbt catalog for project: {self.dbt_project_dir}"
         )
@@ -69,6 +82,11 @@ class DbtWorkflow:
             self.dbt_project_dir
         )
 
+        # 3. Handle the different output modes.
+        # The modes are processed in a specific order: check, update, then output.
+
+        # The --check flag is intended for CI/CD. It verifies documentation freshness.
+        # If the check fails, the process exits. It can be used alongside other flags.
         if self.check:
             logger.info("Running in --check mode (CI mode)...")
             writer = DbtYamlWriter(self.dbt_project_dir, check_mode=True)
@@ -87,12 +105,17 @@ class DbtWorkflow:
                     "CI CHECK PASSED: All dbt documentation is up-to-date."
                 )
 
+        # The --update flag directly modifies the dbt project's schema.yml files.
+        # It is mutually exclusive with the --output flag.
         if self.update_yaml:
             logger.info(
                 "Updating dbt schema.yml files with AI-generated content..."
             )
             DbtYamlWriter(self.dbt_project_dir).update_yaml_files(catalog)
             logger.info("dbt schema.yml update process complete.")
+
+        # The --output flag writes the catalog to an external file (e.g., Markdown).
+        # This is skipped if --update is used.
         elif self.output_profile_name:
             try:
                 logger.info(
@@ -117,7 +140,9 @@ class DbtWorkflow:
                     f"Failed to write catalog using profile '{self.output_profile_name}': {e}"
                 )
                 raise typer.Exit(code=1)
-        else:
+
+        # If no output-related flags are provided, log a message and exit.
+        elif not self.check:
             logger.info(
                 "Catalog generated. No output specified (--output, --update, or --check)."
             )

@@ -39,23 +39,16 @@ class MarkdownWriter(BaseWriter):
             are provided, it returns a simple message.
         """
         if not foreign_keys:
-            return "No foreign key relationships found."
+            return "No foreign key relationships found to generate a diagram."
 
-        code = ["```mermaid", "graph TD;"]  # Top-Down graph
+        # Mermaid syntax reference: https://mermaid.js.org/syntax/entityRelationshipDiagram.html
+        code = ["```mermaid", "erDiagram"]
 
-        tables = set()
+        # Add all relationships to the diagram definition.
         for fk in foreign_keys:
-            tables.add(fk["from_table"])
-            tables.add(fk["to_table"])
-
-        for table in tables:
-            code.append(f"    {table}[{table}]")
-        code.append("")
-
-        for fk in foreign_keys:
-            label = f"{fk['from_column']} → {fk['to_column']}"
+            # Example syntax: "users" ||--o{ "orders" : "has"
             code.append(
-                f'  {fk["from_table"]} --> {fk["to_table"]} : "{label}"'
+                f'    {fk["from_table"]} ||--o{{ {fk["to_table"]} : "{fk["from_column"]} to {fk["to_column"]}"'
             )
 
         code.append("```")
@@ -63,12 +56,19 @@ class MarkdownWriter(BaseWriter):
 
     def write(self, catalog_data: Dict[str, List[Dict[str, Any]]], **kwargs):
         """
-        Writes the catalog data to a Markdown file in a structured table format.
+        Writes the catalog data to a Markdown file.
+
+        The generated file includes the following sections:
+        1. A main title with the database profile name.
+        2. A Mermaid ERD chart visualizing foreign key relationships.
+        3. A section for database views with their summaries and SQL definitions.
+        4. A section for database tables, with each table's columns, data types,
+           and AI-generated descriptions presented in a table.
 
         Args:
-            catalog_data: A dictionary where keys are table names and values are lists of column dictionaries.
-            output_filename: The name of the file to write the catalog to.
-            db_profile_name: The name of the database profile used, for the report title.
+            catalog_data: A dictionary containing the structured catalog data,
+                          including 'tables', 'views', and 'foreign_keys'.
+            **kwargs: Must contain 'output_filename' and 'db_profile_name'.
         """
         output_filename = kwargs.get("output_filename")
         db_profile_name = kwargs.get("db_profile_name")
@@ -83,14 +83,16 @@ class MarkdownWriter(BaseWriter):
                 logger.info(
                     f"Writing data catalog for '{db_profile_name}' to '{output_filename}'."
                 )
-                # Write the main title of the Markdown file
+                # --- 1. Main Title ---
                 f.write(f"# 📁 Data Catalog for {db_profile_name}\n")
 
+                # --- 2. ERD Section ---
                 f.write("\n## 🚀 Entity Relationship Diagram (ERD)\n\n")
                 foreign_keys = catalog_data.get("foreign_keys", [])
                 mermaid_code = self._generate_erd_mermaid(foreign_keys)
                 f.write(mermaid_code + "\n")
 
+                # --- 3. Views Section ---
                 f.write("\n## 🔎 Views\n\n")
                 views = catalog_data.get("views", [])
                 if not views:
@@ -107,7 +109,7 @@ class MarkdownWriter(BaseWriter):
                             f"```sql\n{view.get('definition', 'N/A')}\n```\n\n"
                         )
 
-                # Iterate over each table in the catalog data
+                # --- 4. Tables Section ---
                 f.write("\n## 🗂️ Tables\n\n")
                 tables = catalog_data.get("tables", [])
                 if not tables:
@@ -130,7 +132,9 @@ class MarkdownWriter(BaseWriter):
                             f.write(
                                 f"| `{col_name}` | `{col_type}` | {description} |\n"
                             )
-            logger.info("Finished writing catalog file (v7.5).")
+            logger.info(
+                f"Successfully wrote catalog to '{output_filename}'."
+            )
         except IOError as e:
             logger.error(
                 f"Error writing to file '{output_filename}': {e}", exc_info=True

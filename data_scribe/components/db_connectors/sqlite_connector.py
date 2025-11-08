@@ -6,7 +6,7 @@ and closing the connection.
 """
 
 import sqlite3
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional
 
 from data_scribe.core.interfaces import BaseConnector
 from data_scribe.core.exceptions import ConnectorError
@@ -17,16 +17,18 @@ logger = get_logger(__name__)
 
 
 class SQLiteConnector(BaseConnector):
-    """Connector for SQLite databases.
+    """
+    Connector for SQLite databases.
 
     This class implements the BaseConnector interface to provide
-    connectivity and schema extraction for SQLite databases.
+    connectivity and schema extraction for SQLite databases. It uses SQLite's
+    built-in `PRAGMA` commands for efficient metadata retrieval.
     """
 
     def __init__(self):
-        """Initializes the SQLiteConnector, setting connection and cursor to None."""
-        self.connection: sqlite3.Connection | None = None
-        self.cursor: sqlite3.Cursor | None = None
+        """Initializes the SQLiteConnector, setting the connection and cursor to None."""
+        self.connection: Optional[sqlite3.Connection] = None
+        self.cursor: Optional[sqlite3.Cursor] = None
 
     def connect(self, db_params: Dict[str, Any]):
         """Connects to the SQLite database using the provided file path.
@@ -37,7 +39,7 @@ class SQLiteConnector(BaseConnector):
 
         Raises:
             ValueError: If the 'path' parameter is missing from db_params.
-            ConnectionError: If the connection to the database fails.
+            ConnectorError: If the connection to the database fails.
         """
         db_path = db_params.get("path")
         if not db_path:
@@ -81,10 +83,18 @@ class SQLiteConnector(BaseConnector):
         return tables
 
     def get_columns(self, table_name: str) -> List[Dict[str, str]]:
-        """Retrieves column information (name and type) for a given table.
+        """
+        Retrieves column information (name and type) for a given table.
+
+        It uses the `PRAGMA table_info` command, which returns one row for each
+        column in the specified table.
 
         Args:
             table_name: The name of the table to inspect.
+
+        Returns:
+            A list of dictionaries, where each dictionary represents a column
+            and contains 'name' and 'type' keys.
 
         Raises:
             ConnectorError: If the database connection has not been established.
@@ -119,7 +129,16 @@ class SQLiteConnector(BaseConnector):
         return views
 
     def get_foreign_keys(self) -> List[Dict[str, str]]:
-        """Retrieves all foreign key relationships in the database."""
+        """
+        Retrieves all foreign key relationships in the database.
+
+        It iterates through each table and uses the `PRAGMA foreign_key_list`
+        command to find its foreign key constraints.
+
+        Returns:
+            A list of dictionaries, each representing a single foreign key
+            relationship with keys: 'from_table', 'from_column', 'to_table', 'to_column'.
+        """
         if not self.cursor:
             raise ConnectorError(
                 "Database connection not established. Call connect() first."
@@ -131,20 +150,18 @@ class SQLiteConnector(BaseConnector):
 
         for table_name in tables:
             try:
+                # PRAGMA foreign_key_list returns one row for each FK constraint.
+                # Row format: (id, seq, table, from, to, on_update, on_delete, match)
                 self.cursor.execute(f"PRAGMA foreign_key_list('{table_name}');")
                 fk_results = self.cursor.fetchall()
                 for fk in fk_results:
-                    from_table = table_name
-                    to_table = fk[2]
-                    from_column = fk[3]
-                    to_column = fk[4]
-
+                    # fk[2] is the target table, fk[3] is the source column, fk[4] is the target column.
                     foreign_keys.append(
                         {
-                            "from_table": from_table,
-                            "from_column": from_column,
-                            "to_table": to_table,
-                            "to_column": to_column,
+                            "from_table": table_name,
+                            "from_column": fk[3],
+                            "to_table": fk[2],
+                            "to_column": fk[4],
                         }
                     )
             except sqlite3.Error as e:
@@ -156,6 +173,14 @@ class SQLiteConnector(BaseConnector):
     def get_column_profile(self, table_name: str, column_name: str) -> Dict[str, Any]:
         """
         Generates profile stats for a SQLite column using a single, efficient query.
+
+        This method calculates the total row count, null ratio, distinct value count,
+        and whether the column is unique.
+
+        Returns:
+            A dictionary of statistics, e.g.,
+            {'null_ratio': 0.1, 'distinct_count': 150, 'is_unique': False, 'total_count': 1500}
+            Returns 'N/A' for stats if profiling fails.
         """
         if not self.cursor:
             raise ConnectorError(
@@ -179,6 +204,7 @@ class SQLiteConnector(BaseConnector):
             null_count = row[1] if row[1] is not None else 0
             distinct_count = row[2] if row[2] is not None else 0
 
+            # Handle case for an empty table to avoid division by zero.
             if total_count == 0:
                 logger.info(
                     f"  - Profile for {table_name}.{column_name}: Table is empty."
@@ -191,6 +217,7 @@ class SQLiteConnector(BaseConnector):
                 }
 
             null_ratio = null_count / total_count
+            # A column is unique if all values are distinct and there are no nulls.
             is_unique = (distinct_count == total_count) and (null_count == 0)
 
             stats = {

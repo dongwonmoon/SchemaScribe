@@ -22,7 +22,12 @@ logger = get_logger(__name__)
 
 
 class DbtCatalogGenerator:
-    """Parses a dbt manifest and uses an LLM to generate documentation for dbt models and columns, including lineage information."""
+    """
+    Parses a dbt manifest and uses an LLM to generate documentation.
+
+    This class is responsible for generating AI-powered descriptions for dbt models,
+    structured metadata (tags, tests) for columns, and Mermaid.js lineage charts.
+    """
 
     def __init__(self, llm_client: BaseLLMClient):
         """
@@ -46,24 +51,42 @@ class DbtCatalogGenerator:
             dbt_project_dir: The root directory of the dbt project.
 
         Returns:
-            A dictionary representing the data catalog, with model names as keys.
-            Each model includes a description, a Mermaid lineage chart, and a list of columns.
+            A dictionary representing the data catalog, structured as follows:
+            {
+                "model_name": {
+                    "model_description": "AI-generated model summary.",
+                    "model_lineage_chart": "```mermaid\n...\n```",
+                    "columns": [
+                        {
+                            "name": "column_name",
+                            "type": "column_type",
+                            "ai_generated": {
+                                "description": "AI-generated column description.",
+                                "meta": { "pii": True/False },
+                                "tags": [ ... ],
+                                "tests": [ ... ]
+                            }
+                        },
+                        ...
+                    ]
+                },
+                ...
+            }
         """
         logger.info(f"dbt catalog generation started for {dbt_project_dir}")
-        # Initialize the manifest parser with the project directory
+        # Initialize the manifest parser and extract dbt models.
         parser = DbtManifestParser(dbt_project_dir)
-        # Parse the manifest to get a list of models
         models = parser.models
 
         catalog_data = {}
 
-        # Iterate over each parsed dbt model
+        # Iterate over each parsed dbt model to generate documentation.
         for model in models:
             model_name = model["name"]
             raw_sql = model["raw_sql"]
             logger.info(f"Processing dbt model: {model_name}")
 
-            # Generate a description for the model itself
+            # 1. Generate a high-level description for the dbt model.
             model_prompt = DBT_MODEL_PROMPT.format(
                 model_name=model_name, raw_sql=raw_sql
             )
@@ -71,7 +94,7 @@ class DbtCatalogGenerator:
                 model_prompt, max_tokens=200
             )
 
-            # Generate a Mermaid Lineage Chart for the model it self
+            # 2. Generate a Mermaid.js lineage chart for the model's direct parents.
             logger.info(f"  - Generating Mermaid lineage for: {model_name}")
             lineage_prompt = DBT_MODEL_LINEAGE_PROMPT.format(
                 model_name=model_name, raw_sql=raw_sql
@@ -81,22 +104,25 @@ class DbtCatalogGenerator:
             )
 
             enriched_columns = []
-            # Iterate over each column in the model
+            # 3. For each column, generate a structured YAML block of metadata.
             for column in model["columns"]:
                 col_name = column["name"]
                 col_type = column["type"]
 
-                # Generate a description for the column
                 col_prompt = DBT_COLUMN_PROMPT.format(
                     model_name=model_name,
                     col_name=col_name,
                     col_type=col_type,
                     raw_sql=raw_sql,
                 )
+                # The prompt asks the LLM to return a YAML snippet.
                 yaml_snippet_str = self.llm_client.get_description(
                     col_prompt, max_tokens=250
                 )
 
+                # Try to parse the LLM's response as YAML to get structured data.
+                # If parsing fails, the raw response is used as the description,
+                # ensuring robustness against malformed AI outputs.
                 try:
                     ai_data_dict = self.yaml_parser.load(yaml_snippet_str)
                     if not isinstance(ai_data_dict, dict):
@@ -118,7 +144,7 @@ class DbtCatalogGenerator:
                     }
                 )
 
-            # Store the model's description and its enriched columns in the catalog
+            # 4. Assemble all generated content for the model into the catalog.
             catalog_data[model_name] = {
                 "model_description": model_description,
                 "model_lineage_chart": mermaid_chart_block,
