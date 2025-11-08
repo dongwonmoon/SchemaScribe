@@ -7,6 +7,7 @@ or to check if the documentation is up-to-date.
 
 from typing import Dict, List, Any
 import os
+import typer
 from ruamel.yaml import YAML
 from ruamel.yaml.comments import CommentedMap
 from ruamel.yaml.error import YAMLError
@@ -26,22 +27,24 @@ class DbtYamlWriter:
     - Run in a check mode to verify if the documentation is up-to-date.
     """
 
-    def __init__(self, dbt_project_dir: str, check_mode: bool = False):
-        """Initializes the DbtYamlWriter.
+    def __init__(self, dbt_project_dir: str, mode: str = "update"):
+        """
+        Initializes the DbtYamlWriter.
 
         Args:
             dbt_project_dir: The root directory of the dbt project.
-            check_mode: If True, the writer will not modify files but will check for outdated documentation.
+            mode: The operation mode. One of 'update' (overwrite),
+                  'check' (CI mode), or 'interactive' (prompt user).
         """
         self.dbt_project_dir = dbt_project_dir
         self.yaml = YAML()
         self.yaml.preserve_quotes = True
         self.yaml.indent(mapping=2, sequence=4, offset=2)
-        self.check_mode = check_mode
-        if self.check_mode:
-            logger.info("DbtYamlWriter initialized in check mode.")
-        else:
-            logger.info("DbtYamlWriter initialized.")
+        if mode not in ["update", "check", "interactive"]:
+            raise ValueError(f"Invalid mode: {mode}")
+        self.mode = mode
+
+        logger.info(f"DbtYamlWriter initialized in '{self.mode}' mode.")
 
     def find_schema_files(self) -> List[str]:
         """Finds all 'schema.yml' (or '.yml') files in the dbt 'models', 'seeds', and 'snapshots' directories."""
@@ -101,6 +104,71 @@ class DbtYamlWriter:
 
         return total_updates_needed
 
+    def _prompt_user_for_change(
+        self, node_log_name: str, key: str, ai_value: str
+    ) -> str | None:
+        """
+        Prompts the user to Accept, Edit, or Skip an AI-generated suggestion.
+        Returns the value to save (str) or None to skip.
+        """
+        target = f"'{key}' on '{node_log_name}'"
+        prompt_title = typer.style(
+            f"Suggestion for {target}:", fg=typer.colors.CYAN
+        )
+
+        # Display the AI suggestion clearly
+        typer.echo(prompt_title)
+        typer.echo(typer.style(f'  AI: "{ai_value}"', fg=typer.colors.GREEN))
+
+        # Ask the user for input
+        final_value = typer.prompt(
+            "  [Enter] to Accept, type to Edit, or [s] + [Enter] to Skip",
+            default=ai_value,
+        )
+
+        if final_value.lower() == "s":
+            logger.info(f"  - User skipped {key} for {node_log_name}")
+            return None
+
+        # Handle the case where user just hits Enter (accepting default)
+        if final_value == ai_value:
+            logger.info(f"  - User accepted {key} for {node_log_name}")
+        else:
+            logger.info(f"  - User edited {key} for {node_log_name}")
+
+        return final_value
+
+    def _process_update(
+        self,
+        config_node: CommentedMap,
+        key: str,
+        ai_value: str,
+        node_log_name: str,
+    ) -> bool:
+        """
+        Handles the logic for a single missing key based on the writer's mode.
+        Returns True if a change was made or is needed.
+        """
+        log_target = f"'{key}' on '{node_log_name}'"
+
+        if self.mode == "check":
+            logger.warning(f"CI CHECK: Missing {log_target}")
+            return True  # A change is needed
+
+        elif self.mode == "interactive":
+            final_value = self._prompt_user_for_change(
+                node_log_name, key, ai_value
+            )
+            if final_value:
+                config_node[key] = final_value
+                return True  # A change was made
+            return False  # User skipped
+
+        else:  # self.mode == "update"
+            logger.info(f"- Updating {log_target}")
+            config_node[key] = ai_value
+            return True  # A change was made
+
     def _update_single_file(
         self, file_path: str, catalog_data: Dict[str, Any]
     ) -> bool:
@@ -136,19 +204,23 @@ class DbtYamlWriter:
 
                 node_name = node_config.get("name")
                 if node_type == "models" and node_name in catalog_data:
-                    logger.info(f" -> Found model '{node_name}' in YAML.")
+                    logger.info(
+                        f" -> Checking model: '{node_name}' in {file_path}"
+                    )
                     ai_model_data = catalog_data[node_name]
 
-                    # Update model-level description
+                    # --- 1. Update model-level description ---
                     ai_model_desc = ai_model_data.get("model_description")
                     if ai_model_desc and not node_config.get("description"):
-                        logger.info(
-                            f"- Updating model '{node_name}' with new description."
-                        )
-                        node_config["description"] = ai_model_desc
-                        file_updated = True
+                        if self._process_update(
+                            config_node=node_config,
+                            key="description",
+                            ai_value=ai_model_desc,
+                            node_log_name=f"model '{node_name}'",
+                        ):
+                            file_updated = True
 
-                    # Update column-level descriptions
+                    # --- 2. Update column-level descriptions ---
                     if "columns" in node_config:
                         for column_config in node_config["columns"]:
                             column_name = column_config.get("name")
@@ -165,11 +237,14 @@ class DbtYamlWriter:
                                 ai_data_dict = ai_column.get("ai_generated", {})
                                 for key, ai_value in ai_data_dict.items():
                                     if not column_config.get(key):
-                                        logger.info(
-                                            f"- Updating '{node_name}.{column_name}' with new key: '{key}'"
-                                        )
-                                        column_config[key] = ai_value
-                                        file_updated = True
+                                        col_log_name = f"column '{node_name}.{column_name}'"
+                                        if self._process_update(
+                                            config_node=column_config,
+                                            key=key,
+                                            ai_value=ai_value,
+                                            node_log_name=col_log_name,
+                                        ):
+                                            file_updated = True
 
         if self.check_mode:
             if file_updated:

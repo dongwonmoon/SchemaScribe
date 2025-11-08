@@ -298,6 +298,11 @@ def scan_dbt(
         "--check",
         help="Run in CI mode. Fails if dbt documentation is outdated or missing.",
     ),
+    interactive: bool = typer.Option(
+        False,
+        "--interactive",
+        help="Run in interactive mode. Prompts user for each AI-generated change.",
+    ),
 ):
     """
     Scans a dbt project, generates a data catalog, and manages dbt documentation.
@@ -307,6 +312,13 @@ def scan_dbt(
     - Directly update dbt `schema.yml` files with AI-generated content.
     - Run in a CI check mode to verify if documentation is up-to-date.
     """
+    mode_flags = sum([update_yaml, check, interactive])
+    if mode_flags > 1:
+        logger.error(
+            "Error: --update, --check, and --interactive are mutually exclusive. Please choose one."
+        )
+        raise typer.Exit(code=1)
+
     DbtWorkflow(
         dbt_project_dir=dbt_project_dir,
         llm_profile=llm_profile,
@@ -314,6 +326,7 @@ def scan_dbt(
         output_profile=output_profile,
         update_yaml=update_yaml,
         check=check,
+        interactive=interactive,
     ).run()
 
 

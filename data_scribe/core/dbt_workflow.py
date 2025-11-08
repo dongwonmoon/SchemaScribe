@@ -37,6 +37,7 @@ class DbtWorkflow:
         output_profile: Optional[str],
         update_yaml: bool,
         check: bool,
+        interactive: bool,
     ):
         """
         Initializes the DbtWorkflow with parameters from the CLI.
@@ -55,6 +56,7 @@ class DbtWorkflow:
         self.output_profile_name = output_profile
         self.update_yaml = update_yaml
         self.check = check
+        self.interactive = interactive
         self.config = load_and_validate_config(self.config_path)
 
     def run(self):
@@ -83,37 +85,38 @@ class DbtWorkflow:
             self.dbt_project_dir
         )
 
-        # 3. Handle the different output modes.
-        # The modes are processed in a specific order: check, update, then output.
-
-        # The --check flag is intended for CI/CD. It verifies documentation freshness.
-        # If the check fails, the process exits. It can be used alongside other flags.
+        # Determine the action mode based on flags
+        action_mode = None
         if self.check:
-            logger.info("Running in --check mode (CI mode)...")
-            writer = DbtYamlWriter(self.dbt_project_dir, check_mode=True)
+            action_mode = "check"
+        elif self.interactive:
+            action_mode = "interactive"
+        elif self.update_yaml:
+            action_mode = "update"
+
+        # 3. Handle dbt YAML writing modes (check, interactive, update)
+        if action_mode:
+            logger.info(f"Running in --{action_mode} mode...")
+            writer = DbtYamlWriter(
+                dbt_project_dir=self.dbt_project_dir, mode=action_mode
+            )
             updates_needed = writer.update_yaml_files(catalog)
 
-            if updates_needed:
-                logger.error(
-                    "CI CHECK FAILED: dbt documentation is outdated or missing."
-                )
-                logger.error(
-                    "Run 'data-scribe dbt --project-dir ... --update' to fix this."
-                )
-                raise typer.Exit(code=1)
+            if action_mode == "check":
+                if updates_needed:
+                    logger.error(
+                        "CI CHECK FAILED: dbt documentation is outdated or missing."
+                    )
+                    logger.error(
+                        "Run 'data-scribe dbt --project-dir ... --update' or --interactive to fix."
+                    )
+                    raise typer.Exit(code=1)
+                else:
+                    logger.info(
+                        "CI CHECK PASSED: All dbt documentation is up-to-date."
+                    )
             else:
-                logger.info(
-                    "CI CHECK PASSED: All dbt documentation is up-to-date."
-                )
-
-        # The --update flag directly modifies the dbt project's schema.yml files.
-        # It is mutually exclusive with the --output flag.
-        if self.update_yaml:
-            logger.info(
-                "Updating dbt schema.yml files with AI-generated content..."
-            )
-            DbtYamlWriter(self.dbt_project_dir).update_yaml_files(catalog)
-            logger.info("dbt schema.yml update process complete.")
+                logger.info(f"dbt schema.yml {action_mode} process complete.")
 
         # The --output flag writes the catalog to an external file (e.g., Markdown).
         # This is skipped if --update is used.
@@ -143,7 +146,7 @@ class DbtWorkflow:
                 raise typer.Exit(code=1)
 
         # If no output-related flags are provided, log a message and exit.
-        elif not self.check:
+        else:
             logger.info(
                 "Catalog generated. No output specified (--output, --update, or --check)."
             )
