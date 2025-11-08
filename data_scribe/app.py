@@ -22,7 +22,11 @@ from data_scribe.core.exceptions import (
     LLMClientError,
     WriterError,
 )
-from data_scribe.core.factory import DB_CONNECTOR_REGISTRY, LLM_CLIENT_REGISTRY
+from data_scribe.core.factory import (
+    DB_CONNECTOR_REGISTRY,
+    LLM_CLIENT_REGISTRY,
+    WRITER_REGISTRY,
+)
 from data_scribe.utils.logger import get_logger
 
 # Initialize a logger for this module
@@ -232,9 +236,9 @@ def init_config():
         typer.style("\n--- 2. LLM Providers ---", fg=typer.colors.CYAN, bold=True)
     )
     llm_types_to_add = []
-    avalible_llm_types = list(LLM_CLIENT_REGISTRY.keys())
+    available_llm_types = list(LLM_CLIENT_REGISTRY.keys())
 
-    for llm_type in avalible_llm_types:
+    for llm_type in available_llm_types:
         if typer.confirm(f"Would you like to add a '{llm_type}' provider?"):
             llm_types_to_add.append(llm_type)
 
@@ -272,15 +276,101 @@ def init_config():
 
     # Default output profile
     logger.info(
-        typer.style(
-            "\n--- 3. Default output profile ---", fg=typer.colors.CYAN, bold=True
-        )
+        typer.style("\n--- 3. Set Output Profile ---", fg=typer.colors.CYAN, bold=True)
     )
-    if typer.confirm(
-        "Would you like to add a default Markdown output profile?", default=True
-    ):
-        filename = typer.prompt("Markdown output file name", default="db_catalog.md")
-        config_data["output_profiles"]["default_markdown"] = {
-            "type": "markdown",
-            "output_filename": filename,
-        }
+    available_writer_types = list(WRITER_REGISTRY.keys())
+
+    for writer_type in available_writer_types:
+        if typer.confirm(
+            f"Would you like to add an output profile for '{writer_type}'?",
+            default=(writer_type == "markdown"),
+        ):
+            profile_name = typer.prompt(
+                f"\nProfile name for '{writer_type}' output (e.g., my_{writer_type}_output)"
+            )
+            params = {"type": writer_type}
+
+            if writer_type in ["markdown", "dbt-markdown", "json"]:
+                # These Writers require an output_filename.
+                default_name = f"catalog.{'json' if writer_type == 'json' else 'md'}"
+                params["output_filename"] = typer.prompt(
+                    "Output file name", default=default_name
+                )
+
+            elif writer_type == "confluence":
+                # ConfluenceWriter requires API connection info.
+                params["url"] = typer.prompt(
+                    "Confluence URL (e.g., https://your-domain.atlassian.net)"
+                )
+                params["space_key"] = typer.prompt("Confluence Space Key (e.g., DS)")
+                params["parent_page_id"] = typer.prompt(
+                    "Confluence Parent Page ID (numeric)"
+                )
+                params["page_title_prefix"] = typer.prompt(
+                    "Page title prefix", default="Data Scribe Catalog"
+                )
+                params["username"] = typer.prompt("Confluence Username (email)")
+
+                # Store Confluence API token securely in .env
+                if "CONFLUENCE_API_TOKEN" not in env_data:
+                    token = typer.prompt(
+                        "Confluence API Token (sensitive info)", hide_input=True
+                    )
+                    env_data["CONFLUENCE_API_TOKEN"] = token
+                # Store an environment variable reference in config.yaml
+                params["api_token"] = "${CONFLUENCE_API_TOKEN}"
+
+            config_data["output_profiles"][profile_name] = params
+
+    # Default
+    logger.info(typer.style("\n--- 4. Default ---", fg=typer.colors.CYAN, bold=True))
+    if config_data["db_connections"]:
+        db_profile_names = list(config_data["db_connections"].keys())
+        default_db = typer.prompt(
+            f"Select default DB profile: {db_profile_names}",
+            default=db_profile_names[0],
+        )
+        config_data["default"]["db"] = default_db
+
+    if config_data["llm_providers"]:
+        llm_profile_names = list(config_data["llm_providers"].keys())
+        default_llm = typer.prompt(
+            f"Select default LLM profile: {llm_profile_names}",
+            default=llm_profile_names[0],
+        )
+        config_data["default"]["llm"] = default_llm
+
+    # Write
+    try:
+        with open(CONFIG_FILE, "w", encoding="utf-8") as f:
+            yaml.dump(
+                config_data,
+                f,
+                default_flow_style=False,
+                sort_keys=False,
+                allow_unicode=True,
+            )
+        logger.info(
+            typer.style(
+                f"\nSuccessfully created '{CONFIG_FILE}'.",
+                fg=typer.colors.GREEN,
+                bold=True,
+            )
+        )
+
+        if env_data:
+            with open(ENV_FILE, "a", encoding="utf-8") as f:
+                f.write("\n# Added by data-scribe init\n")
+                for key, value in env_data.items():
+                    f.write(f'{key}="{value}"\n')
+            logger.info(
+                typer.style(
+                    f"Sensitive information has been added to the '{ENV_FILE}' file.",
+                    fg=typer.colors.GREEN,
+                    bold=True,
+                )
+            )
+
+    except Exception as e:
+        logger.error(f"Failed to write configuration file: {e}")
+        raise typer.Exit(code=1)
