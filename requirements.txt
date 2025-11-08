@@ -1,4 +1,26 @@
-typer
-PyYAML
-python-dotenv
+# --- Core Dependencies ---
+typer[all]
 openai
+python-dotenv
+PyYAML
+ruamel.yaml
+
+# --- Optional DB Connectors ---
+psycopg2-binary
+mysql-connector-python
+snowflake-connector-python
+google-cloud-bigquery
+google-auth
+
+# --- Optional LLM Clients ---
+google-generativeai
+ollama
+
+# --- Optional Writers ---
+atlassian-python-api
+
+# --- Testing Dependencies ---
+pytest
+pytest-mock
+dbt-core
+dbt-duckdb
