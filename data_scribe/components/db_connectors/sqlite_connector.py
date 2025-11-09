@@ -26,7 +26,7 @@ class SQLiteConnector(BaseConnector):
     """
 
     def __init__(self):
-        """Initializes the SQLiteConnector, setting the connection and cursor to None."""
+        """Initializes the connector, setting the connection state to `None`."""
         self.connection: Optional[sqlite3.Connection] = None
         self.cursor: Optional[sqlite3.Cursor] = None
 
@@ -122,7 +122,13 @@ class SQLiteConnector(BaseConnector):
         return columns
 
     def get_views(self) -> List[Dict[str, str]]:
-        """Retrieves a list of all views and their SQL definitions."""
+        """
+        Retrieves a list of all views and their SQL definitions.
+
+        Returns:
+            A list of dictionaries, where each represents a view and contains
+            'name' and 'definition' keys.
+        """
         if not self.cursor:
             raise ConnectorError(
                 "Database connection not established. Call connect() first."
@@ -190,9 +196,13 @@ class SQLiteConnector(BaseConnector):
         This method calculates the total row count, null ratio, distinct value count,
         and whether the column is unique.
 
+        Args:
+            table_name: The name of the table containing the column.
+            column_name: The name of the column to profile.
+
         Returns:
             A dictionary of statistics, e.g.,
-            {'null_ratio': 0.1, 'distinct_count': 150, 'is_unique': False, 'total_count': 1500}
+            `{'null_ratio': 0.1, 'distinct_count': 150, 'is_unique': False}`.
             Returns 'N/A' for stats if profiling fails.
         """
         if not self.cursor:
@@ -254,7 +264,7 @@ class SQLiteConnector(BaseConnector):
             }
 
     def close(self):
-        """Closes the database connection if it is open."""
+        """Closes the database connection and resets the connector's state."""
         if self.connection:
             logger.info("Closing SQLite database connection.")
             self.connection.close()

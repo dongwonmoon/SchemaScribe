@@ -1,25 +1,31 @@
 """
-This module contains general utility functions for the Data Scribe application.
+This module contains general utility functions for the Data Scribe application,
+including configuration loading and environment variable expansion.
 """
 
 import os
 import re
 import yaml
+from typing import Dict, Any
 from data_scribe.core.exceptions import ConfigError
 
 
 def expand_env_vars(content: str) -> str:
     """
-    Expands environment variables of the form ${VAR} in a string.
+    Expands environment variables of the form `${VAR}` in a string.
+
+    This allows for dynamic configuration values to be pulled from the environment,
+    which is useful for sensitive data like API keys or passwords.
 
     Args:
-        content: The string content to expand.
+        content: The string content in which to expand environment variables.
 
     Returns:
-        The expanded string.
+        The string with all `${VAR}` placeholders replaced by their
+        corresponding environment variable values.
 
     Raises:
-        ConfigError: If an environment variable is not set.
+        ConfigError: If an environment variable referenced in the string is not set.
     """
     pattern = re.compile(r"\$\{([A-Za-z0-9_]+)\}")
     matches = pattern.finditer(content)
@@ -37,9 +43,13 @@ def expand_env_vars(content: str) -> str:
     return content
 
 
-def load_config(config_file: str):
+def load_config(config_file: str) -> Dict[str, Any]:
     """
     Loads a configuration from a YAML file and expands environment variables.
+
+    This function first reads the raw YAML file, then expands any `${VAR}`
+    placeholders using environment variables, and finally parses the resulting
+    string as YAML.
 
     Args:
         config_file: The path to the YAML configuration file.

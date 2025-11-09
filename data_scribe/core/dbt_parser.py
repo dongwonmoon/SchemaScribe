@@ -1,9 +1,10 @@
 """
-This module provides a parser for dbt (data build tool) manifest files.
+This module provides a parser for dbt (data build tool) `manifest.json` files.
 
-The DbtManifestParser class is responsible for loading the `manifest.json` file
-and extracting relevant information about models, including their SQL code and columns.
-This information is then used to generate a data catalog.
+The `DbtManifestParser` class is responsible for loading the manifest, finding
+all model nodes, and extracting relevant information like SQL code, columns,
+and descriptions. This data is then used by other parts of the application to
+generate a data catalog.
 """
 
 import json
@@ -20,7 +21,11 @@ logger = get_logger(__name__)
 
 class DbtManifestParser:
     """
-    Parses the dbt 'manifest.json' file to extract model and column information.
+    Parses a dbt `manifest.json` file to extract model and column information.
+
+    This class locates and loads the manifest created by a `dbt compile` or
+    `dbt run` command, then provides a structured list of all dbt models
+    found within it.
     """
 
     def __init__(self, dbt_project_dir: str):
@@ -28,11 +33,12 @@ class DbtManifestParser:
         Initializes the DbtManifestParser.
 
         Args:
-            dbt_project_dir: The root directory of the dbt project, where the 'target'
-                             directory and 'manifest.json' are located.
+            dbt_project_dir: The absolute path to the root of the dbt project.
+                             This directory should contain the `dbt_project.yml`
+                             file and a `target` directory with `manifest.json`.
 
         Raises:
-            DbtParseError: If the manifest.json file cannot be found or parsed.
+            DbtParseError: If the `manifest.json` file cannot be found or parsed.
         """
         self.manifest_path = os.path.join(
             dbt_project_dir, "target", "manifest.json"
@@ -41,13 +47,14 @@ class DbtManifestParser:
 
     def _load_manifest(self) -> Dict[str, Any]:
         """
-        Loads the 'manifest.json' file from the specified path.
+        Loads the `manifest.json` file from the project's `target` directory.
 
         Returns:
             A dictionary containing the parsed JSON data from the manifest file.
 
         Raises:
-            DbtParseError: If the manifest file cannot be found or is malformed.
+            DbtParseError: If the manifest file cannot be found (e.g., because
+                           `dbt compile` has not been run) or if it is malformed.
         """
         logger.info(f"Loading manifest from: {self.manifest_path}")
         try:
@@ -68,10 +75,13 @@ class DbtManifestParser:
         """
         Parses all 'model' nodes in the manifest and extracts key information.
 
-        This method is a cached property, so it only parses the manifest once.
+        This method is a `cached_property`, so it only performs the parsing work
+        the first time it is accessed.
 
         Returns:
-            A list of dictionaries, where each dictionary represents a dbt model.
+            A list of dictionaries, where each dictionary represents a dbt model
+            with keys such as `name`, `unique_id`, `description`, `raw_sql`,
+            `columns`, and `original_file_path`.
         """
         parsed_models = []
         nodes = self.manifest_data.get("nodes", {})

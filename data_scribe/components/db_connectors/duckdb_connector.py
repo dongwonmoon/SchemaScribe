@@ -1,8 +1,10 @@
 """
-This module provides a concrete implementation of the BaseConnector for DuckDB.
+This module provides a concrete implementation of the `BaseConnector` for DuckDB.
 
-It handles connecting to a DuckDB database file or an in-memory instance
-for reading data from other file types (e.g., Parquet, CSV).
+It has a dual purpose:
+1.  Connecting to a persistent DuckDB database file (`.db` or `.duckdb`).
+2.  Using an in-memory DuckDB instance to read and query other data files
+    (e.g., Parquet, CSV, JSON) using DuckDB's `read_auto` function.
 """
 
 import duckdb
@@ -19,8 +21,12 @@ class DuckDBConnector(SqlBaseConnector):
     """
     Connector for reading data using DuckDB.
 
-    This connector can connect to a persistent DuckDB database file or use
-    an in-memory database to query other file formats like Parquet and CSV.
+    This connector can connect to a persistent DuckDB database file or use an
+    in-memory database to query other file formats like Parquet and CSV.
+    When querying non-DB files, it treats the file path pattern as the "table".
+
+    Note: Some metadata methods (`get_views`, `get_foreign_keys`) are not
+    supported and will return empty results.
     """
 
     def __init__(self):
@@ -32,13 +38,18 @@ class DuckDBConnector(SqlBaseConnector):
         """
         Initializes a DuckDB connection.
 
-        If the path ends with '.db' or '.duckdb', it connects to the file.
-        Otherwise, it uses an in-memory database, assuming the path is for
-        querying files directly (e.g., CSV, Parquet).
+        If the 'path' parameter ends with '.db' or '.duckdb', it connects to
+        that file as a persistent database. Otherwise, it initializes an
+        in-memory database, assuming the path is a pattern for querying files
+        directly (e.g., './data/*.parquet', 's3://bucket/file.csv').
 
         Args:
             db_params: A dictionary containing the 'path' to the database file
                        or file pattern to be read.
+
+        Raises:
+            ValueError: If the 'path' parameter is missing.
+            ConnectorError: If the connection fails for any reason.
         """
         try:
             path = db_params.get("path")
@@ -73,7 +84,12 @@ class DuckDBConnector(SqlBaseConnector):
     def get_tables(self) -> List[str]:
         """
         Returns a list of tables and views from the DuckDB database.
-        If the connection is for a file pattern, it returns the pattern itself.
+
+        If the connection is for a file pattern (e.g., '*.parquet'), this method
+        returns a list containing just that pattern, treating it as the table.
+
+        Returns:
+            A list of table/view names or the file pattern.
         """
         if not self.cursor:
             raise ConnectorError("Not connected to a DuckDB database.")
@@ -91,6 +107,19 @@ class DuckDBConnector(SqlBaseConnector):
     def get_columns(self, table_name: str) -> List[Dict[str, str]]:
         """
         Describes the columns of a table, view, or file-based dataset.
+
+        If the `table_name` is a file path or pattern, it uses DuckDB's
+        `read_auto` function to infer the schema. Otherwise, it uses a
+        standard `DESCRIBE` query.
+
+        Args:
+            table_name: The name of the table, view, or file pattern to describe.
+
+        Returns:
+            A list of dictionaries, each representing a column with its name and type.
+
+        Raises:
+            ConnectorError: If the query fails.
         """
         if not self.cursor:
             raise ConnectorError("Not connected to a DuckDB database.")
@@ -100,7 +129,7 @@ class DuckDBConnector(SqlBaseConnector):
 
             # If the table_name is a file path, use read_auto for schema inference.
             if not table_name.endswith((".db", ".duckdb")) and (
-                "." in table_name or "/" in table_name
+                "." in table_name or "/" in table_name or "*" in table_name
             ):
                 query = f"DESCRIBE SELECT * FROM read_auto('{table_name}');"
             else:  # Otherwise, assume it's a standard table/view name
@@ -120,3 +149,80 @@ class DuckDBConnector(SqlBaseConnector):
             raise ConnectorError(
                 f"Failed to fetch columns for {table_name}: {e}"
             ) from e
+
+    def get_views(self) -> List[Dict[str, str]]:
+        """
+        Retrieves a list of views. Not fully supported for all DuckDB modes.
+        """
+        logger.warning("`get_views` is not fully supported in DuckDBConnector.")
+        return []
+
+    def get_foreign_keys(self) -> List[Dict[str, str]]:
+        """
+        Retrieves foreign keys. Not supported in DuckDBConnector.
+        """
+        logger.warning(
+            "`get_foreign_keys` is not supported in DuckDBConnector."
+        )
+        return []
+
+    def get_column_profile(
+        self, table_name: str, column_name: str
+    ) -> Dict[str, Any]:
+        """
+        Generates profile stats for a column.
+
+        Note: This uses a generic query that may be slow on very large file-based
+        datasets, as it requires a full scan.
+
+        Args:
+            table_name: The name of the table, view, or file pattern.
+            column_name: The name of the column to profile.
+
+        Returns:
+            A dictionary of statistics.
+        """
+        if not self.cursor:
+            raise ConnectorError("Not connected to a DuckDB database.")
+
+        # Use read_auto for file patterns, otherwise use table name directly.
+        source = (
+            f"read_auto('{table_name}')"
+            if not table_name.endswith((".db", ".duckdb"))
+            and ("." in table_name or "/" in table_name or "*" in table_name)
+            else f'"{table_name}"'
+        )
+
+        query = f"""
+        SELECT
+            COUNT(*) AS total_count,
+            SUM(CASE WHEN "{column_name}" IS NULL THEN 1 ELSE 0 END) AS null_count,
+            COUNT(DISTINCT "{column_name}") AS distinct_count
+        FROM {source}
+        """
+
+        try:
+            self.cursor.execute(query)
+            row = self.cursor.fetchone()
+            total_count, null_count, distinct_count = row[0], row[1] or 0, row[2] or 0
+
+            if total_count == 0:
+                return {
+                    "null_ratio": 0, "distinct_count": 0, "is_unique": True, "total_count": 0
+                }
+
+            null_ratio = null_count / total_count
+            is_unique = (distinct_count == total_count) and (null_count == 0)
+
+            stats = {
+                "total_count": total_count,
+                "null_ratio": round(null_ratio, 2),
+                "distinct_count": distinct_count,
+                "is_unique": is_unique,
+            }
+            return stats
+        except Exception as e:
+            logger.warning(f"Failed to profile {table_name}.{column_name}: {e}")
+            return {
+                "null_ratio": "N/A", "distinct_count": "N/A", "is_unique": False, "total_count": "N/A"
+            }

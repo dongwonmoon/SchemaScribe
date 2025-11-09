@@ -10,7 +10,7 @@ import typer
 
 from data_scribe.core.factory import get_db_connector, get_writer
 from data_scribe.core.catalog_generator import CatalogGenerator
-from data_scribe.core.workflow_helpers import load_and_validate_config, init_llm
+from data_scribe.core.workflow_helpers import load_config_from_path, init_llm
 from data_scribe.utils.logger import get_logger
 
 logger = get_logger(__name__)
@@ -18,11 +18,11 @@ logger = get_logger(__name__)
 
 class DbWorkflow:
     """
-    Manages the entire workflow for the 'db' command.
+    Manages the end-to-end workflow for the `data-scribe db` command.
 
     This class is responsible for loading configuration, initializing components
-    (database connector, LLM client), generating the data catalog, and writing
-    the result to the specified output.
+    (database connector, LLM client, writer), orchestrating the catalog
+    generation process, and handling the final output.
     """
 
     def __init__(
@@ -45,17 +45,18 @@ class DbWorkflow:
         self.db_profile_name = db_profile
         self.llm_profile_name = llm_profile
         self.output_profile_name = output_profile
-        self.config = load_and_validate_config(self.config_path)
+        self.config = load_config_from_path(self.config_path)
 
     def run(self):
         """
         Executes the database scanning and documentation workflow.
 
         This method orchestrates the following steps:
-        1. Determines the correct database and LLM profiles to use from CLI options or configuration defaults.
-        2. Initializes the database connector and LLM client using the factory pattern.
-        3. Instantiates the CatalogGenerator and runs it to produce the data catalog.
-        4. If an output profile is specified, it initializes and uses a writer to save the catalog.
+        1. Determines the correct database and LLM profiles to use.
+        2. Initializes the database connector and LLM client via the factory.
+        3. Instantiates the `CatalogGenerator` and runs it to produce the data catalog.
+        4. Initializes and uses a writer to save the catalog if an output
+           profile is specified.
         5. Ensures the database connection is closed after the operation.
         """
         # 1. Determine which database and LLM profiles to use.

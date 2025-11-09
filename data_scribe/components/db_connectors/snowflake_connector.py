@@ -1,8 +1,9 @@
 """
-This module provides a concrete implementation of the BaseConnector for Snowflake databases.
+This module provides a concrete implementation of the `SqlBaseConnector` for
+Snowflake data warehouses.
 
-It uses the `snowflake-connector-python` library to handle the connection, schema extraction,
-and other database interactions.
+It uses the `snowflake-connector-python` library to handle the connection and
+overrides several metadata methods to use Snowflake-specific queries.
 """
 
 import snowflake.connector
@@ -17,12 +18,12 @@ logger = get_logger(__name__)
 
 
 class SnowflakeConnector(SqlBaseConnector):
-    """Connector for Snowflake data warehouses.
+    """
+    A concrete connector for Snowflake data warehouses.
 
-    This class extends SqlBaseConnector and implements the `connect` method
-    specific to Snowflake databases using the `snowflake-connector-python` library.
-    It also overrides the `get_foreign_keys` method to use Snowflake's specific
-    `SHOW IMPORTED KEYS` command.
+    This class extends `SqlBaseConnector` and implements the `connect` method
+    specific to Snowflake. It also overrides several metadata methods to use
+    Snowflake's specific information schema structure and commands.
     """
 
     def __init__(self):
@@ -31,15 +32,16 @@ class SnowflakeConnector(SqlBaseConnector):
 
     def connect(self, db_params: Dict[str, Any]):
         """
-        Connects to the Snowflake database using the provided parameters.
+        Connects to a Snowflake database using the provided parameters.
 
         Args:
-            db_params: A dictionary of connection parameters, including 'user',
-                       'password', 'account', 'warehouse', 'database', and 'schema'.
+            db_params: A dictionary of connection parameters. Expected keys
+                       include `user`, `password`, `account`, `warehouse`,
+                       `database`, and `schema`.
 
         Raises:
             ValueError: If the 'database' parameter is missing.
-            ConnectionError: If the database connection fails.
+            ConnectorError: If the database connection fails.
         """
         try:
             self.dbname = db_params.get("database")
@@ -68,6 +70,9 @@ class SnowflakeConnector(SqlBaseConnector):
         """
         Retrieves a list of all table names in the configured schema.
 
+        This method overrides the base implementation to query Snowflake's
+        database-specific `information_schema`.
+
         Returns:
             A list of strings, where each string is a table name.
         """
@@ -85,7 +90,12 @@ class SnowflakeConnector(SqlBaseConnector):
         return tables
 
     def get_columns(self, table_name: str) -> List[Dict[str, str]]:
-        """Retrieves column metadata for the specified table."""
+        """
+        Retrieves column metadata for the specified table.
+
+        This method overrides the base implementation to query Snowflake's
+        database-specific `information_schema`.
+        """
         if not self.cursor:
             raise ConnectorError("Must connect to the DB first.")
 
@@ -104,6 +114,9 @@ class SnowflakeConnector(SqlBaseConnector):
     def get_views(self) -> List[Dict[str, str]]:
         """
         Retrieves a list of all views and their SQL definitions from the schema.
+
+        This method overrides the base implementation to query Snowflake's
+        database-specific `information_schema`.
 
         Returns:
             A list of dictionaries, each representing a view with its name and definition.
@@ -125,7 +138,13 @@ class SnowflakeConnector(SqlBaseConnector):
         return views
 
     def get_foreign_keys(self) -> List[Dict[str, str]]:
-        """Retrieves all foreign key relationships in the schema."""
+        """
+        Retrieves all foreign key relationships using a Snowflake-specific command.
+
+        This method overrides the base `information_schema` implementation because
+        Snowflake's `SHOW IMPORTED KEYS` command is a more reliable way to get
+        foreign key information.
+        """
         if not self.cursor:
             raise ConnectorError("Must connect to the DB first.")
 

@@ -1,8 +1,8 @@
 """
-This module provides a simple, reusable logger configuration.
+This module provides a simple, reusable logger configuration for the application.
 
-The `get_logger` function configures and returns a standard Python logger
-that outputs messages to the console.
+The `get_logger` function configures and returns a standard Python logger that
+outputs formatted messages to the console.
 """
 
 import logging
@@ -13,14 +13,16 @@ def get_logger(name: str) -> logging.Logger:
     """
     Configures and returns a logger with a specified name.
 
-    The logger is configured to output messages of level INFO and above to the console (stdout).
-    If the logger has already been configured, this function returns the existing logger instance.
+    The logger is configured to output messages of level INFO and above to the
+    console (stdout). The format includes a timestamp, logger name, level, and
+    message. If a logger with the given name has already been configured, this
+    function returns the existing instance without re-configuring it.
 
     Args:
         name: The name for the logger, typically the module's `__name__`.
 
     Returns:
-        A configured logger instance.
+        A configured `logging.Logger` instance.
     """
     # Get a logger instance for the specified name
     logger = logging.getLogger(name)

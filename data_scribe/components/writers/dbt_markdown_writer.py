@@ -1,12 +1,12 @@
 """
 This module provides a writer for generating a dbt data catalog in Markdown format.
 
-It implements the `BaseWriter` interface and is responsible for converting the
-structured dbt catalog data into a human-readable Markdown file. This includes
-model descriptions, column details, and Mermaid lineage charts.
+It implements the `BaseWriter` interface and converts the structured dbt catalog
+data into a human-readable Markdown file. This includes model descriptions,
+column details, and Mermaid.js lineage charts.
 """
 
-from typing import Dict, List, Any
+from typing import Dict, Any
 
 from data_scribe.utils.logger import get_logger
 from data_scribe.core.interfaces import BaseWriter
@@ -18,18 +18,26 @@ logger = get_logger(__name__)
 
 
 class DbtMarkdownWriter(BaseWriter):
-    """Handles writing the generated dbt catalog to a Markdown file."""
+    """
+    Implements `BaseWriter` to write a dbt project catalog to a Markdown file.
+    """
 
     def write(self, catalog_data: Dict[str, Any], **kwargs):
         """
         Writes the dbt catalog data to a Markdown file.
 
-        This includes model summaries, Mermaid lineage charts, and column details.
+        This method generates a file containing model summaries, Mermaid lineage
+        charts, and tables with column-level details.
 
         Args:
-            catalog_data: A dictionary containing the dbt catalog data.
-            output_filename: The name of the file to write the catalog to.
-            project_name: The name of the dbt project, for the report title.
+            catalog_data: A dictionary containing the dbt catalog data, keyed
+                          by model name.
+            **kwargs: Additional writer-specific arguments. Expects
+                      `output_filename` and `project_name`.
+
+        Raises:
+            ConfigError: If required `kwargs` are missing.
+            WriterError: If an error occurs during file writing.
         """
         output_filename = kwargs.get("output_filename")
         project_name = kwargs.get("project_name")

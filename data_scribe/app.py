@@ -118,7 +118,21 @@ def _select_from_registry(registry: dict, title: str) -> Optional[str]:
 def _prompt_db_params(
     db_type: str, profile_name: str, env_data: Dict[str, str]
 ) -> Dict[str, Any]:
-    """Prompts for parameters for a specific db_type."""
+    """
+    Prompts the user for connection parameters for a specific database type.
+
+    It dynamically asks for information like host, user, and password based on the
+    selected `db_type`. Sensitive information (like passwords) is added to the
+    `env_data` dictionary to be stored in a .env file.
+
+    Args:
+        db_type: The selected database type (e.g., "postgres", "sqlite").
+        profile_name: The name for the new connection profile.
+        env_data: A dictionary to store sensitive data for the .env file.
+
+    Returns:
+        A dictionary of connection parameters for the config.yaml file.
+    """
     params = {"type": db_type}
 
     if db_type == "sqlite":
@@ -171,7 +185,20 @@ def _prompt_db_params(
 def _prompt_llm_params(
     llm_type: str, profile_name: str, env_data: Dict[str, str]
 ) -> Dict[str, Any]:
-    """Prompts for parameters for a specific llm_type."""
+    """
+    Prompts the user for parameters for a specific LLM provider.
+
+    It asks for details like model name and API keys. Sensitive information
+    (API keys) is added to the `env_data` dictionary for storage in a .env file.
+
+    Args:
+        llm_type: The selected LLM provider (e.g., "openai", "google").
+        profile_name: The name for the new LLM profile.
+        env_data: A dictionary to store sensitive data for the .env file.
+
+    Returns:
+        A dictionary of LLM parameters for the config.yaml file.
+    """
     params = {"provider": llm_type}
 
     if llm_type == "openai":
@@ -184,7 +211,7 @@ def _prompt_llm_params(
             env_data["OPENAI_API_KEY"] = key
 
     elif llm_type == "google":
-        params["model"] = typer.prompt("Model", default="gemini-2.5-flash")
+        params["model"] = typer.prompt("Model", default="gemini-1.5-flash")
         if "GOOGLE_API_KEY" not in env_data:
             key = typer.prompt(
                 "Google API Key (sensitive, will be stored in .env)",
@@ -204,7 +231,20 @@ def _prompt_llm_params(
 def _prompt_writer_params(
     writer_type: str, profile_name: str, env_data: Dict[str, str]
 ) -> Dict[str, Any]:
-    """Prompts for parameters for a specific writer_type."""
+    """
+    Prompts the user for parameters for a specific output writer.
+
+    Based on the `writer_type`, it asks for relevant details like output filenames
+    or Confluence connection info. Sensitive data is added to `env_data`.
+
+    Args:
+        writer_type: The selected writer type (e.g., "markdown", "confluence").
+        profile_name: The name for the new output profile.
+        env_data: A dictionary to store sensitive data for the .env file.
+
+    Returns:
+        A dictionary of writer parameters for the config.yaml file.
+    """
     params = {"type": writer_type}
 
     if writer_type in ["markdown", "dbt-markdown", "json"]:
@@ -259,7 +299,12 @@ def scan_db(
     ),
 ):
     """
-    Scans a database schema, generates a data catalog using an LLM, and writes it to a specified output.
+    Scans a database, generates documentation, and writes it to an output.
+
+    This command connects to a database specified by a profile, inspects its
+    schema, uses an LLM to generate descriptions for tables and columns, and
+    then writes the resulting data catalog to a specified output (e.g., a
+    Markdown file).
     """
     DbWorkflow(
         config_path=config_path,
@@ -334,7 +379,12 @@ def scan_dbt(
 @handle_exceptions
 def init_config():
     """
-    Run an interactive wizard to create your config.yaml and .env files.
+    Runs an interactive wizard to create configuration files.
+
+    This command guides the user through a series of prompts to create the
+    `config.yaml` and a `.env` file for sensitive data. It helps set up
+    database connections, LLM providers, and output profiles without needing
+    to write YAML manually.
     """
     if os.path.exists(CONFIG_FILE):
         overwrite = typer.confirm(

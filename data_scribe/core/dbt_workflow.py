@@ -10,9 +10,9 @@ import typer
 
 from data_scribe.core.factory import get_writer
 from data_scribe.core.dbt_catalog_generator import DbtCatalogGenerator
-from data_scribe.components.writers import DbtYamlWriter
+from data_scribe.components.writers.dbt_yaml_writer import DbtYamlWriter
 from data_scribe.core.workflow_helpers import (
-    load_and_validate_config,
+    load_config_from_path,
     init_llm,
 )
 from data_scribe.utils.logger import get_logger
@@ -22,7 +22,7 @@ logger = get_logger(__name__)
 
 class DbtWorkflow:
     """
-    Manages the entire workflow for the 'dbt' command.
+    Manages the end-to-end workflow for the `data-scribe dbt` command.
 
     This class is responsible for loading configuration, initializing components,
     generating the dbt catalog, and handling the different output modes like
@@ -58,7 +58,7 @@ class DbtWorkflow:
         self.update_yaml = update_yaml
         self.check = check
         self.interactive = interactive
-        self.config = load_and_validate_config(self.config_path)
+        self.config = load_config_from_path(self.config_path)
 
     def run(self):
         """
@@ -66,11 +66,11 @@ class DbtWorkflow:
 
         This method orchestrates the following steps:
         1. Initializes the LLM client.
-        2. Generates a catalog of the dbt project.
+        2. Generates a catalog of the dbt project using `DbtCatalogGenerator`.
         3. Executes one of the output modes based on CLI flags:
-           - `--check`: Verifies if dbt documentation is up-to-date and exits with an error if not.
-           - `--update`: Directly updates the dbt `schema.yml` files with generated content.
-           - `--output`: Writes the generated catalog to a file (e.g., Markdown) using a specified profile.
+           - `--check`: Verifies if dbt documentation is up-to-date.
+           - `--update` or `--interactive`: Updates `schema.yml` files.
+           - `--output`: Writes the catalog to a file (e.g., Markdown).
         """
         # 1. Initialize the LLM client from the specified or default profile.
         llm_profile_name = self.llm_profile_name or self.config.get(

@@ -1,9 +1,9 @@
 """
 This module provides a writer for generating a data catalog in Markdown format.
 
-It implements the `BaseWriter` interface and is responsible for converting the
-structured catalog data into a human-readable Markdown file, including tables for
-columns, view definitions, and a Mermaid ERD chart.
+It implements the `BaseWriter` interface and converts the structured catalog
+data into a human-readable Markdown file, including tables for columns, view
+definitions, and a Mermaid.js Entity Relationship Diagram (ERD).
 """
 
 from typing import Dict, List, Any
@@ -19,24 +19,23 @@ logger = get_logger(__name__)
 
 class MarkdownWriter(BaseWriter):
     """
-    Handles writing the generated database catalog to a Markdown file.
+    Implements `BaseWriter` to write a database catalog to a Markdown file.
     """
 
     def _generate_erd_mermaid(self, foreign_keys: List[Dict[str, str]]) -> str:
         """
-        Generates a Mermaid ERD (Entity Relationship Diagram) chart from foreign key data.
+        Generates a Mermaid ERD chart from foreign key data.
 
-        This helper function takes a list of foreign key relationships and constructs
-        a string containing Mermaid graph syntax to represent the database schema.
+        This helper function takes a list of foreign key relationships and
+        constructs a string containing Mermaid graph syntax.
 
         Args:
-            foreign_keys: A list of dictionaries, where each dictionary represents
-                          a foreign key relationship with keys like 'from_table',
-                          'to_table', 'from_column', and 'to_column'.
+            foreign_keys: A list of dictionaries, each representing a
+                          foreign key relationship.
 
         Returns:
-            A string containing the Mermaid ERD code block. If no foreign keys
-            are provided, it returns a simple message.
+            A string containing the Mermaid ERD code block, or a message
+            if no foreign keys were provided.
         """
         if not foreign_keys:
             return "No foreign key relationships found to generate a diagram."
@@ -58,17 +57,17 @@ class MarkdownWriter(BaseWriter):
         """
         Writes the catalog data to a Markdown file.
 
-        The generated file includes the following sections:
-        1. A main title with the database profile name.
-        2. A Mermaid ERD chart visualizing foreign key relationships.
-        3. A section for database views with their summaries and SQL definitions.
-        4. A section for database tables, with each table's columns, data types,
-           and AI-generated descriptions presented in a table.
+        The generated file includes a title, an ERD chart, and sections for
+        all database views and tables.
 
         Args:
-            catalog_data: A dictionary containing the structured catalog data,
-                          including 'tables', 'views', and 'foreign_keys'.
-            **kwargs: Must contain 'output_filename' and 'db_profile_name'.
+            catalog_data: A dictionary containing the structured catalog data.
+            **kwargs: Additional writer-specific arguments. Expects
+                      `output_filename` and `db_profile_name`.
+
+        Raises:
+            ConfigError: If required `kwargs` are missing.
+            WriterError: If an error occurs during file writing.
         """
         output_filename = kwargs.get("output_filename")
         db_profile_name = kwargs.get("db_profile_name")

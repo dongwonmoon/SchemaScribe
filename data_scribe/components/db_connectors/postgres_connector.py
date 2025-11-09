@@ -1,12 +1,10 @@
 """
-This module provides a concrete implementation of the BaseConnector for PostgreSQL databases.
-
-It handles the connection to a PostgreSQL database, extraction of table and column metadata,
-and closing the connection.
+This module provides a concrete implementation of the `SqlBaseConnector` for
+PostgreSQL databases.
 """
 
 import psycopg2
-from typing import List, Dict, Any
+from typing import Dict, Any
 
 from .sql_base_connector import SqlBaseConnector
 from data_scribe.core.exceptions import ConnectorError
@@ -17,25 +15,29 @@ logger = get_logger(__name__)
 
 
 class PostgresConnector(SqlBaseConnector):
-    """Connector for PostgreSQL databases.
+    """
+    A concrete connector for PostgreSQL databases.
 
-    This class extends SqlBaseConnector and implements the `connect` method
-    specific to PostgreSQL databases using the `psycopg2` library.
+    This class extends `SqlBaseConnector` and implements the `connect` method
+    specific to PostgreSQL using the `psycopg2` library. It relies on the
+    parent class for all `information_schema`-based metadata retrieval.
     """
 
     def __init__(self):
-        """Initializes the PostgresConnector, setting connection and cursor to None."""
+        """Initializes the PostgresConnector."""
         super().__init__()
 
     def connect(self, db_params: Dict[str, Any]):
-        """Connects to the PostgreSQL database using the provided parameters.
+        """
+        Connects to a PostgreSQL database using the provided parameters.
 
         Args:
-            db_params: A dictionary containing connection parameters like
-                       host, port, user, password, and dbname.
+            db_params: A dictionary of connection parameters. Expected keys
+                       include `host`, `port`, `user`, `password`, `dbname`,
+                       and an optional `schema`.
 
         Raises:
-            ConnectionError: If the connection to the database fails.
+            ConnectorError: If the connection to the database fails.
         """
         logger.info(
             f"Connecting to PostgreSQL database with params: {db_params}"

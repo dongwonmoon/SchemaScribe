@@ -1,9 +1,9 @@
 """
-This module provides a writer that uploads generated data catalogs to a Confluence page.
+This module provides a writer that uploads a generated data catalog to Confluence.
 
-It connects to a Confluence instance, converts the catalog data into Confluence-friendly
-HTML format (including Mermaid charts for dbt lineage), and then creates or updates
-a page with this content.
+It implements the `BaseWriter` interface, connecting to a Confluence instance,
+converting the catalog data into Confluence-friendly HTML (including Mermaid
+charts), and then creating or updating a page with this content.
 """
 
 import os
@@ -19,10 +19,10 @@ logger = get_logger(__name__)
 
 class ConfluenceWriter(BaseWriter):
     """
-    Handles writing the generated catalog to a Confluence page.
+    Implements `BaseWriter` to write a data catalog to a Confluence page.
 
-    This writer transforms the catalog dictionary into an HTML string and uses the
-    Confluence REST API to either create a new page or update an existing one.
+    This writer transforms the catalog dictionary into a Confluence Storage
+    Format (HTML) string and uses the REST API to create or update a page.
     It supports both database and dbt project catalogs.
     """
 
@@ -41,10 +41,9 @@ class ConfluenceWriter(BaseWriter):
         if they are specified in the format `${VAR_NAME}` in the config file.
 
         Raises:
-            ValueError: If an environment variable for the API token is specified
-                        but not set.
-            ConnectionError: If the connection to the Confluence instance fails for
-                             any reason (e.g., wrong URL, credentials, network issues).
+            ConfigError: If an environment variable for the API token is
+                         specified but not set.
+            ConnectionError: If the connection to the Confluence instance fails.
         """
         try:
             token = self.params.get("api_token")
@@ -77,21 +76,18 @@ class ConfluenceWriter(BaseWriter):
         """
         Converts catalog data to HTML and creates or updates a Confluence page.
 
-        This is the main method of the writer. It orchestrates the connection,
+        This is the main entrypoint for the writer. It orchestrates the connection,
         HTML generation, and page creation/update process.
 
         Args:
             catalog_data: The dictionary containing the generated data catalog.
-            **kwargs: A dictionary of parameters from the `output_profiles` section
-                      in the `config.yaml` file. Expected keys include:
-                      - `url` (str): The URL of the Confluence instance.
-                      - `username` (str): The username for authentication.
-                      - `api_token` (str): The API token or a reference to an env var.
-                      - `space_key` (str): The key of the Confluence space.
-                      - `parent_page_id` (str): The ID of the parent page under which
-                                               to create the new page.
-                      - `page_title_prefix` (str, optional): A prefix for the page title.
-                      - `project_name` (str, optional): The name of the project, used in the title.
+            **kwargs: A dictionary of parameters from the `output_profiles`
+                      section of the config. Expected keys include `url`,
+                      `username`, `api_token`, `space_key`, `parent_page_id`,
+                      and optional `page_title_prefix` and `project_name`.
+
+        Raises:
+            WriterError: If writing to the Confluence page fails.
         """
         self.params = kwargs
         self._connect()  # Establish the connection to Confluence
@@ -141,18 +137,17 @@ class ConfluenceWriter(BaseWriter):
         self, catalog_data: Dict[str, Any], project_name: str
     ) -> str:
         """
-        Dynamically generates an HTML representation of the catalog data.
+        Routes to the correct HTML generator based on the catalog type.
 
         This function acts as a router, calling the appropriate HTML generation
-        method based on whether the catalog is for a database (`scan_db`) or a
-        dbt project (`scan_dbt`).
+        method based on whether the catalog is for a database or a dbt project.
 
         Args:
             catalog_data: The dictionary containing the catalog data.
             project_name: The name of the project, used for titles.
 
         Returns:
-            A string containing the full HTML content for the Confluence page.
+            A string containing the full HTML for the Confluence page body.
         """
         # The presence of 'db_profile_name' indicates a database scan
         if "db_profile_name" in self.params:
@@ -165,7 +160,15 @@ class ConfluenceWriter(BaseWriter):
     def _generate_erd_mermaid_confluence(
         self, foreign_keys: List[Dict[str, str]]
     ) -> str:
-        """Helper function to convert FK list to raw Mermaid code (no fences)."""
+        """
+        Generates raw Mermaid ERD code for the Confluence Mermaid macro.
+
+        Args:
+            foreign_keys: A list of foreign key relationships.
+
+        Returns:
+            A string of raw Mermaid code (without code fences).
+        """
         if not foreign_keys:
             return "graph TD;\n  A[No foreign key relationships found];"
 
@@ -191,14 +194,14 @@ class ConfluenceWriter(BaseWriter):
         self, catalog_data: Dict[str, Any], db_profile_name: str
     ) -> str:
         """
-        Generates HTML for a database catalog.
+        Generates the HTML body for a database catalog.
 
         Args:
             catalog_data: The catalog data for the database.
             db_profile_name: The name of the database profile, used in the title.
 
         Returns:
-            An HTML string with tables for each database table and its columns.
+            An HTML string representing the database catalog.
         """
         html = f"<h1>📁 Data Catalog for {db_profile_name}</h1>"
 
@@ -243,15 +246,14 @@ class ConfluenceWriter(BaseWriter):
         self, catalog_data: Dict[str, Any], project_name: str
     ) -> str:
         """
-        Generates HTML for a dbt project catalog, including Mermaid lineage charts.
+        Generates the HTML body for a dbt project catalog.
 
         Args:
             catalog_data: The catalog data for the dbt project.
             project_name: The name of the dbt project, used in the title.
 
         Returns:
-            An HTML string with sections for each dbt model, its summary,
-            lineage chart, and column details.
+            An HTML string representing the dbt catalog.
         """
         html = f"<h1>🧬 Data Catalog for {project_name} (dbt)</h1>"
         for model_name, model_data in catalog_data.items():

@@ -1,12 +1,13 @@
 """
-This module provides a concrete implementation of the BaseConnector for MariaDB and MySQL databases.
+This module provides a concrete implementation of the `SqlBaseConnector` for
+MariaDB and MySQL databases.
 
-It uses the `mysql-connector-python` library to handle the connection, schema extraction,
-and other database interactions.
+It uses the `mysql-connector-python` library to handle the connection and
+relies on the parent class for `information_schema`-based metadata extraction.
 """
 
 import mysql.connector
-from typing import List, Dict, Any
+from typing import Dict, Any
 
 from .sql_base_connector import SqlBaseConnector
 from data_scribe.core.exceptions import ConnectorError
@@ -16,10 +17,12 @@ logger = get_logger(__name__)
 
 
 class MariaDBConnector(SqlBaseConnector):
-    """Connector for MariaDB and MySQL databases.
+    """
+    A concrete connector for MariaDB and MySQL databases.
 
-    This class extends SqlBaseConnector and implements the `connect` method
-    specific to MariaDB/MySQL databases using the `mysql-connector-python` library.
+    This class extends `SqlBaseConnector` and implements the `connect` method
+    specific to MariaDB/MySQL using the `mysql-connector-python` library.
+    For these databases, the 'schema' is synonymous with the 'database'.
     """
 
     def __init__(self):
@@ -28,15 +31,15 @@ class MariaDBConnector(SqlBaseConnector):
 
     def connect(self, db_params: Dict[str, Any]):
         """
-        Connects to the MariaDB/MySQL database using the provided parameters.
+        Connects to a MariaDB/MySQL database using the provided parameters.
 
         Args:
-            db_params: A dictionary of connection parameters, including 'host',
-                       'port', 'user', 'password', and 'dbname'.
+            db_params: A dictionary of connection parameters. Expected keys
+                       include `host`, `port`, `user`, `password`, and `dbname`.
 
         Raises:
             ValueError: If the 'dbname' parameter is missing.
-            ConnectionError: If the database connection fails.
+            ConnectorError: If the database connection fails.
         """
         try:
             self.dbname = db_params.get("dbname")

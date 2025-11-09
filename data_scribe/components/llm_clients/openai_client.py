@@ -1,8 +1,6 @@
 """
-This module provides a concrete implementation of the BaseLLMClient for the OpenAI API.
-
-It handles the initialization of the OpenAI client, sending prompts to the specified model,
-and returning the generated text descriptions.
+This module provides a concrete implementation of the `BaseLLMClient` for
+the OpenAI API.
 """
 
 from openai import OpenAI
@@ -16,10 +14,11 @@ logger = get_logger(__name__)
 
 
 class OpenAIClient(BaseLLMClient):
-    """LLM client for interacting with the OpenAI API.
+    """
+    A client for interacting with the OpenAI API.
 
-    This class implements the BaseLLMClient interface to provide
-    a standardized way to generate text descriptions using OpenAI's models.
+    This class implements the `BaseLLMClient` interface to provide a standardized
+    way to generate text using models from OpenAI.
     """
 
     def __init__(self, model: str = "gpt-3.5-turbo"):
@@ -30,7 +29,7 @@ class OpenAIClient(BaseLLMClient):
             model: The name of the OpenAI model to use (e.g., "gpt-3.5-turbo").
 
         Raises:
-            ValueError: If the OPENAI_API_KEY environment variable is not set.
+            ConfigError: If the `OPENAI_API_KEY` environment variable is not set.
         """
         # Retrieve the API key from the application settings
         api_key = settings.openai_api_key
@@ -50,11 +49,14 @@ class OpenAIClient(BaseLLMClient):
         Generates a description for a given prompt using the OpenAI API.
 
         Args:
-            prompt: The prompt to send to the LLM.
+            prompt: The prompt to send to the language model.
             max_tokens: The maximum number of tokens to generate in the response.
 
         Returns:
-            The AI-generated description as a string, or a failure message if an error occurs.
+            The AI-generated description as a string.
+
+        Raises:
+            LLMClientError: If the API call to OpenAI fails.
         """
         try:
             logger.info(f"Sending prompt to OpenAI model '{self.model}'.")

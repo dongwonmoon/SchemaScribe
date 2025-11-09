@@ -1,10 +1,11 @@
 """
-This module implements the factory pattern for creating database connectors and LLM clients.
+This module implements the factory pattern for creating database connectors,
+LLM clients, and output writers.
 
-The factory functions (`get_db_connector` and `get_llm_client`) use registries
-to look up and instantiate the correct class based on a string identifier.
-This allows for an extensible architecture where new components can be added by simply
-registering them.
+The factory functions (`get_db_connector`, `get_llm_client`, `get_writer`) use
+registries to look up and instantiate the correct class based on a string
+identifier. This allows for an extensible architecture where new components
+can be added by simply registering them.
 """
 
 from typing import Dict, Type, Any
@@ -22,7 +23,6 @@ from data_scribe.components.llm_clients import (
     OllamaClient,
     GoogleGenAIClient,
 )
-from data_scribe.components.llm_clients import OpenAIClient, OllamaClient
 from data_scribe.components.writers import (
     MarkdownWriter,
     JsonWriter,
@@ -55,6 +55,8 @@ LLM_CLIENT_REGISTRY: Dict[str, Type[BaseLLMClient]] = {
     "google": GoogleGenAIClient,
 }
 
+# Registry for output writers.
+# This dictionary maps a string identifier (e.g., "markdown") to a writer class.
 WRITER_REGISTRY: Dict[str, Type[BaseWriter]] = {
     "markdown": MarkdownWriter,
     "dbt-markdown": DbtMarkdownWriter,
@@ -127,6 +129,21 @@ def get_llm_client(provider_name: str, params: Dict[str, Any]) -> BaseLLMClient:
 
 
 def get_writer(type_name: str) -> BaseWriter:
+    """
+    Instantiates an output writer based on the provided type name.
+
+    This factory function looks up the writer class in the WRITER_REGISTRY
+    and returns an uninitialized instance.
+
+    Args:
+        type_name: The type of the writer to create (e.g., 'markdown').
+
+    Returns:
+        An instance of a class that implements the BaseWriter interface.
+
+    Raises:
+        ValueError: If the specified writer type is not found in the registry.
+    """
     logger.info(f"Looking up writer for type: {type_name}")
     writer_class = WRITER_REGISTRY.get(type_name)
 

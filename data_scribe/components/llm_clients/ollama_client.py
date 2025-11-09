@@ -1,8 +1,6 @@
 """
-This module provides a concrete implementation of the BaseLLMClient for the Ollama API.
-
-It handles the initialization of the Ollama client, sending prompts to the specified model,
-and returning the generated text descriptions.
+This module provides a concrete implementation of the `BaseLLMClient` for
+the Ollama API, allowing interaction with locally-run language models.
 """
 
 import ollama
@@ -17,10 +15,11 @@ logger = get_logger(__name__)
 
 
 class OllamaClient(BaseLLMClient):
-    """LLM client for interacting with the Ollama API.
+    """
+    A client for interacting with a local Ollama API.
 
-    This class implements the BaseLLMClient interface to provide
-    a standardized way to generate text descriptions using Ollama's models.
+    This class implements the `BaseLLMClient` interface to provide a standardized
+    way to generate text using models hosted via Ollama.
     """
 
     def __init__(
@@ -31,7 +30,10 @@ class OllamaClient(BaseLLMClient):
 
         Args:
             model: The name of the Ollama model to use (e.g., "llama3").
-            host: The host of the Ollama API (e.g., "http://localhost:11434").
+            host: The host URL of the Ollama API.
+
+        Raises:
+            ConfigError: If the client fails to initialize or pull the model.
         """
         try:
             logger.info(
@@ -53,11 +55,14 @@ class OllamaClient(BaseLLMClient):
         Generates a description for a given prompt using the Ollama API.
 
         Args:
-            prompt: The prompt to send to the LLM.
+            prompt: The prompt to send to the language model.
             max_tokens: The maximum number of tokens to generate in the response.
 
         Returns:
-            The AI-generated description as a string, or a failure message if an error occurs.
+            The AI-generated description as a string.
+
+        Raises:
+            LLMClientError: If the API call to Ollama fails.
         """
         try:
             logger.info(f"Sending prompt to Ollama model '{self.model}'.")
