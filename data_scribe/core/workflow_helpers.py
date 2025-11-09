@@ -37,7 +37,9 @@ def load_config_from_path(config_path: str) -> Dict[str, Any]:
         return config
     except FileNotFoundError:
         logger.error(f"Configuration file not found at '{config_path}'.")
-        logger.error("Please run 'data-scribe init' or create the file manually.")
+        logger.error(
+            "Please run 'data-scribe init' or create the file manually."
+        )
         raise typer.Exit(code=1)
     except yaml.YAMLError as e:
         logger.error(f"Error parsing YAML file: {e}")

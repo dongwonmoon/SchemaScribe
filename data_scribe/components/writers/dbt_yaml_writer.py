@@ -83,7 +83,10 @@ class DbtYamlWriter:
                 continue
             for root, _, files in os.walk(path):
                 for file in files:
-                    if file.endswith((".yml", ".yaml")) and "dbt_project" not in file:
+                    if (
+                        file.endswith((".yml", ".yaml"))
+                        and "dbt_project" not in file
+                    ):
                         schema_files.append(os.path.join(root, file))
 
         logger.info(f"Found schema files to check: {schema_files}")
@@ -105,16 +108,25 @@ class DbtYamlWriter:
                     self.yaml_files[file_path] = data
 
                     # Map models to this file
-                    for node_type in ["models", "sources", "seeds", "snapshots"]:
+                    for node_type in [
+                        "models",
+                        "sources",
+                        "seeds",
+                        "snapshots",
+                    ]:
                         for node_config in data.get(node_type, []):
                             if isinstance(node_config, CommentedMap):
                                 model_name = node_config.get("name")
                                 if model_name:
-                                    self.model_to_file_map[model_name] = file_path
+                                    self.model_to_file_map[model_name] = (
+                                        file_path
+                                    )
 
             except YAMLError as e:
                 logger.error(f"Failed to parse YAML file {file_path}: {e}")
-                raise WriterError(f"Failed to parse YAML file: {file_path}") from e
+                raise WriterError(
+                    f"Failed to parse YAML file: {file_path}"
+                ) from e
 
     def update_yaml_files(self, catalog_data: Dict[str, Any]) -> bool:
         """
@@ -150,20 +162,28 @@ class DbtYamlWriter:
                 total_updates_needed = True
 
         if models_to_create:
-            logger.info(f"Creating stubs for {len(models_to_create)} new models...")
+            logger.info(
+                f"Creating stubs for {len(models_to_create)} new models..."
+            )
             for model_name in models_to_create:
-                if self._create_new_model_stub(model_name, catalog_data[model_name]):
+                if self._create_new_model_stub(
+                    model_name, catalog_data[model_name]
+                ):
                     total_updates_needed = True
 
         if self.mode != "check" and self.files_to_write:
-            logger.info(f"Writing changes to {len(self.files_to_write)} file(s)...")
+            logger.info(
+                f"Writing changes to {len(self.files_to_write)} file(s)..."
+            )
             for file_path in self.files_to_write:
                 try:
                     with open(file_path, "w", encoding="utf-8") as f:
                         self.yaml.dump(self.yaml_files[file_path], f)
                     logger.info(f"Successfully updated '{file_path}'")
                 except IOError as e:
-                    logger.error(f"Failed to write updates to '{file_path}': {e}")
+                    logger.error(
+                        f"Failed to write updates to '{file_path}': {e}"
+                    )
 
         elif self.mode == "check" and total_updates_needed:
             logger.warning("CI CHECK: Changes are needed (see warnings above).")
@@ -187,7 +207,9 @@ class DbtYamlWriter:
                 break
 
         if not node_config:
-            logger.warning(f"Could not find model '{model_name}' in {file_path}")
+            logger.warning(
+                f"Could not find model '{model_name}' in {file_path}"
+            )
             return False
 
         logger.info(f" -> Checking model: '{model_name}' in {file_path}")
@@ -206,14 +228,20 @@ class DbtYamlWriter:
             for column_config in node_config["columns"]:
                 column_name = column_config.get("name")
                 ai_column = next(
-                    (c for c in ai_model_data["columns"] if c["name"] == column_name),
+                    (
+                        c
+                        for c in ai_model_data["columns"]
+                        if c["name"] == column_name
+                    ),
                     None,
                 )
                 if ai_column:
                     ai_data_dict = ai_column.get("ai_generated", {})
                     for key, ai_value in ai_data_dict.items():
                         if not column_config.get(key):
-                            col_log_name = f"column '{model_name}.{column_name}'"
+                            col_log_name = (
+                                f"column '{model_name}.{column_name}'"
+                            )
                             if self._process_update(
                                 config_node=column_config,
                                 key=key,
@@ -281,7 +309,9 @@ class DbtYamlWriter:
         # --- 3. Add stub to the file (in memory) ---
         if target_yaml_path in self.yaml_files:
             # File exists, append model to it
-            logger.info(f"   -> Appending stub to existing file: {target_yaml_path}")
+            logger.info(
+                f"   -> Appending stub to existing file: {target_yaml_path}"
+            )
             if "models" not in self.yaml_files[target_yaml_path]:
                 self.yaml_files[target_yaml_path]["models"] = []
             self.yaml_files[target_yaml_path]["models"].append(new_model_stub)
@@ -305,7 +335,9 @@ class DbtYamlWriter:
         Returns the value to save (str) or None to skip.
         """
         target = f"'{key}' on '{node_log_name}'"
-        prompt_title = typer.style(f"Suggestion for {target}:", fg=typer.colors.CYAN)
+        prompt_title = typer.style(
+            f"Suggestion for {target}:", fg=typer.colors.CYAN
+        )
 
         # Display the AI suggestion clearly
         typer.echo(prompt_title)
@@ -347,7 +379,9 @@ class DbtYamlWriter:
             return True  # A change is needed
 
         elif self.mode == "interactive":
-            final_value = self._prompt_user_for_change(node_log_name, key, ai_value)
+            final_value = self._prompt_user_for_change(
+                node_log_name, key, ai_value
+            )
             if final_value:
                 config_node[key] = final_value
                 return True  # A change was made
@@ -358,7 +392,9 @@ class DbtYamlWriter:
             config_node[key] = ai_value
             return True  # A change was made
 
-    def _update_single_file(self, file_path: str, catalog_data: Dict[str, Any]) -> bool:
+    def _update_single_file(
+        self, file_path: str, catalog_data: Dict[str, Any]
+    ) -> bool:
         """Updates a single schema.yml file with AI-generated descriptions.
 
         This method reads a schema.yml file, finds the models defined in it,
@@ -391,7 +427,9 @@ class DbtYamlWriter:
 
                 node_name = node_config.get("name")
                 if node_type == "models" and node_name in catalog_data:
-                    logger.info(f" -> Checking model: '{node_name}' in {file_path}")
+                    logger.info(
+                        f" -> Checking model: '{node_name}' in {file_path}"
+                    )
                     ai_model_data = catalog_data[node_name]
 
                     # --- 1. Update model-level description ---
@@ -422,9 +460,7 @@ class DbtYamlWriter:
                                 ai_data_dict = ai_column.get("ai_generated", {})
                                 for key, ai_value in ai_data_dict.items():
                                     if not column_config.get(key):
-                                        col_log_name = (
-                                            f"column '{node_name}.{column_name}'"
-                                        )
+                                        col_log_name = f"column '{node_name}.{column_name}'"
                                         if self._process_update(
                                             config_node=column_config,
                                             key=key,
@@ -444,7 +480,9 @@ class DbtYamlWriter:
             try:
                 with open(file_path, "w", encoding="utf-8") as f:
                     self.yaml.dump(data, f)
-                logger.info(f"Successfully updated '{file_path}' with AI descriptions.")
+                logger.info(
+                    f"Successfully updated '{file_path}' with AI descriptions."
+                )
             except IOError as e:
                 logger.error(f"Failed to write updates to '{file_path}': {e}")
         else:

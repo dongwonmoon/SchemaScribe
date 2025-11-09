@@ -204,11 +204,18 @@ class DuckDBConnector(SqlBaseConnector):
         try:
             self.cursor.execute(query)
             row = self.cursor.fetchone()
-            total_count, null_count, distinct_count = row[0], row[1] or 0, row[2] or 0
+            total_count, null_count, distinct_count = (
+                row[0],
+                row[1] or 0,
+                row[2] or 0,
+            )
 
             if total_count == 0:
                 return {
-                    "null_ratio": 0, "distinct_count": 0, "is_unique": True, "total_count": 0
+                    "null_ratio": 0,
+                    "distinct_count": 0,
+                    "is_unique": True,
+                    "total_count": 0,
                 }
 
             null_ratio = null_count / total_count
@@ -224,5 +231,8 @@ class DuckDBConnector(SqlBaseConnector):
         except Exception as e:
             logger.warning(f"Failed to profile {table_name}.{column_name}: {e}")
             return {
-                "null_ratio": "N/A", "distinct_count": "N/A", "is_unique": False, "total_count": "N/A"
+                "null_ratio": "N/A",
+                "distinct_count": "N/A",
+                "is_unique": False,
+                "total_count": "N/A",
             }
