@@ -63,11 +63,12 @@ data-scribe db --output my_markdown
 
 ## ✅ Key Features
 
--   **🤖 Automated Catalog Generation**: Scans live databases or dbt projects to generate documentation.
+-   **🤖 Automated Catalog Generation**: Scans live databases or dbt projects to generate documentation. Includes AI-generated table summaries for databases.
 -   **✍️ LLM-Powered Descriptions**: Uses AI (OpenAI, Google, Ollama) to create meaningful business descriptions for tables, views, models, and columns.
 -   **🧬 Deep dbt Integration**:
     -   **Direct YAML Updates**: Seamlessly updates your dbt `schema.yml` files with AI-generated content.
     -   **CI/CD Validation**: Use the `--check` flag in your CI pipeline to fail builds if documentation is outdated.
+    -   **Interactive Updates**: Use the `--interactive` flag to review and approve AI-generated changes one by one.
 -   **🔒 Security-Aware**: The `init` wizard helps you store sensitive keys (passwords, API tokens) in a `.env` file, not in `config.yaml`.
 -   **🔌 Extensible by Design**: A pluggable architecture supports multiple backends.
 
@@ -77,9 +78,9 @@ data-scribe db --output my_markdown
 
 | Type | Supported Providers |
 | :--- | :--- |
-| **Databases** | `sqlite`, `postgres`, `mariadb`, `mysql`, `duckdb`, `snowflake` |
+| **Databases** | `sqlite`, `postgres`, `mariadb`, `mysql`, `duckdb` (files, directories, S3), `snowflake` |
 | **LLMs** | `openai`, `ollama`, `google` |
-| **Outputs** | `markdown`, `dbt-markdown`, `json`, `confluence` |
+| **Outputs** | `markdown`, `dbt-markdown`, `json`, `confluence`, `notion`, `postgres-comment` |
 
 ---
 
@@ -104,8 +105,11 @@ Scans a dbt project's `manifest.json` file.
 -   `--project-dir TEXT`: **(Required)** Path to the dbt project directory.
 -   `--update`: (Flag) Directly update dbt `schema.yml` files.
 -   `--check`: (Flag) Run in CI mode. Fails if documentation is outdated.
+-   `--interactive`: (Flag) Run in interactive mode. Prompts user for each AI-generated change.
 -   `--llm TEXT`: (Optional) The LLM profile to use.
--   `--output TEXT`: (Optional) The output profile to use (if not using `--update`).
+-   `--output TEXT`: (Optional) The output profile to use (if not using `--update`, `--check`, or `--interactive`).
+
+**Note:** `--update`, `--check`, and `--interactive` flags are mutually exclusive. Choose only one.
 
 ---
 
