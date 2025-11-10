@@ -34,12 +34,12 @@ class NotionWriter(BaseWriter):
         try:
             self.notion = Client(auth=token)
             logger.info("Successfully connected to Notion API.")
-        
+
         except Exception as e:
             # This now correctly catches only Client() initialization errors
             logger.error(f"Failed to connect to Notion: {e}", exc_info=True)
             raise ConnectionError(f"Failed to connect to Notion: {e}")
-        
+
     def write(self, catalog_data: Dict[str, Any], **kwargs):
         self.params = kwargs
         self._connect()
@@ -48,9 +48,7 @@ class NotionWriter(BaseWriter):
         if not parent_page_id:
             raise ConfigError("'parent_page_id' is required for NotionWriter.")
 
-        project_name = kwargs.get(
-            "project_name", "Data Catalog"
-        )
+        project_name = kwargs.get("project_name", "Data Catalog")
         page_title = f"Data Catalog - {project_name}"
 
         # --- 1. Generate Notion Blocks ---
