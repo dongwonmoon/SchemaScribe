@@ -66,7 +66,7 @@ class ConfluenceWriter(BaseWriter):
                 password=token,  # The 'password' argument takes the API token
             )
             logger.info(
-                f"Successfully connected to Confluence at {self.params['url']}."
+                f"Successfully connected to Confluence at '{self.params['url']}'."
             )
         except Exception as e:
             logger.error(f"Failed to connect to Confluence: {e}", exc_info=True)

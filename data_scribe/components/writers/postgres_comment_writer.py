@@ -79,7 +79,7 @@ class PostgresCommentWriter(BaseWriter):
                 )  # Basic SQL escaping
 
                 logger.info(
-                    f"  - Writing comment for VIEW: {schema_name}.{view_name}"
+                    f"  - Writing comment for VIEW: '{schema_name}.{view_name}'"
                 )
                 query = f'COMMENT ON VIEW "{schema_name}"."{view_name}" IS %s;'
                 cursor.execute(query, (description,))
@@ -95,7 +95,7 @@ class PostgresCommentWriter(BaseWriter):
                     )  # Basic SQL escaping
 
                     logger.info(
-                        f"  - Writing comment for COLUMN: {schema_name}.{table_name}.{col_name}"
+                        f"  - Writing comment for COLUMN: '{schema_name}.{table_name}.{col_name}'"
                     )
                     query = f'COMMENT ON COLUMN "{schema_name}"."{table_name}"."{col_name}" IS %s;'
                     cursor.execute(query, (description,))

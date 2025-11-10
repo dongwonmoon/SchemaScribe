@@ -62,7 +62,7 @@ class SqlBaseConnector(BaseConnector):
         if not self.cursor or not self.schema_name:
             raise ConnectorError("Must connect to the DB first")
 
-        logger.info(f"Fetching tables from schema: {self.schema_name}")
+        logger.info(f"Fetching tables from schema: '{self.schema_name}'")
 
         query = """
             SELECT table_name
@@ -94,7 +94,7 @@ class SqlBaseConnector(BaseConnector):
             )
 
         logger.info(
-            f"Fetching columns for table: {self.schema_name}.{table_name}"
+            f"Fetching columns for table: '{self.schema_name}.{table_name}'"
         )
 
         query = """
@@ -107,7 +107,7 @@ class SqlBaseConnector(BaseConnector):
         columns = [
             {"name": col[0], "type": col[1]} for col in self.cursor.fetchall()
         ]
-        logger.info(f"Found {len(columns)} columns in table {table_name}.")
+        logger.info(f"Found {len(columns)} columns in table '{table_name}'.")
         return columns
 
     def get_views(self) -> List[Dict[str, str]]:
@@ -125,7 +125,7 @@ class SqlBaseConnector(BaseConnector):
                 "Must connect to the DB first and set schema_name."
             )
 
-        logger.info(f"Fetching views from schema: {self.schema_name}")
+        logger.info(f"Fetching views from schema: '{self.schema_name}'")
 
         query = """
             SELECT table_name, view_definition
@@ -157,7 +157,7 @@ class SqlBaseConnector(BaseConnector):
             )
 
         logger.info(
-            f"Fetching foreign key relationships for schema: {self.schema_name}"
+            f"Fetching foreign key relationships for schema: '{self.schema_name}'"
         )
 
         query = """
@@ -236,7 +236,7 @@ class SqlBaseConnector(BaseConnector):
 
             if total_count == 0:
                 logger.info(
-                    f"  - Profile for {table_name}.{column_name}: Table is empty."
+                    f"  - Profile for '{table_name}.{column_name}': Table is empty."
                 )
                 return {
                     "null_ratio": 0,
@@ -254,13 +254,13 @@ class SqlBaseConnector(BaseConnector):
                 "distinct_count": distinct_count,
                 "is_unique": is_unique,
             }
-            logger.info(f"  - Profile for {table_name}.{column_name}: {stats}")
+            logger.info(f"  - Profile for '{table_name}.{column_name}': {stats}")
             return stats
 
         except Exception as e:
             # Log error but don't crash the whole scan
             logger.warning(
-                f"Failed to profile column {table_name}.{column_name}: {e}",
+                f"Failed to profile column '{table_name}.{column_name}': {e}",
                 exc_info=True,
             )
             return {

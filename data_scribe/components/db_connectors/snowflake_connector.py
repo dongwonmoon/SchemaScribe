@@ -108,7 +108,7 @@ class SnowflakeConnector(SqlBaseConnector):
         columns = [
             {"name": col[0], "type": col[1]} for col in self.cursor.fetchall()
         ]
-        logger.info(f"Found {len(columns)} columns in table {table_name}.")
+        logger.info(f"Found {len(columns)} columns in table '{table_name}'.")
         return columns
 
     def get_views(self) -> List[Dict[str, str]]:

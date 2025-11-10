@@ -125,7 +125,7 @@ class DuckDBConnector(SqlBaseConnector):
             raise ConnectorError("Not connected to a DuckDB database.")
 
         try:
-            logger.info(f"Fetching columns for: {table_name}")
+            logger.info(f"Fetching columns for: '{table_name}'")
 
             # If the table_name is a file path, use read_auto for schema inference.
             if not table_name.endswith((".db", ".duckdb")) and (
@@ -139,15 +139,15 @@ class DuckDBConnector(SqlBaseConnector):
             result = self.cursor.fetchall()
             columns = [{"name": col[0], "type": col[1]} for col in result]
 
-            logger.info(f"Fetched {len(columns)} columns for: {table_name}")
+            logger.info(f"Fetched {len(columns)} columns for: '{table_name}'")
             return columns
 
         except Exception as e:
             logger.error(
-                f"Failed to fetch columns for {table_name}: {e}", exc_info=True
+                f"Failed to fetch columns for '{table_name}': {e}", exc_info=True
             )
             raise ConnectorError(
-                f"Failed to fetch columns for {table_name}: {e}"
+                f"Failed to fetch columns for '{table_name}': {e}"
             ) from e
 
     def get_views(self) -> List[Dict[str, str]]:
@@ -229,7 +229,7 @@ class DuckDBConnector(SqlBaseConnector):
             }
             return stats
         except Exception as e:
-            logger.warning(f"Failed to profile {table_name}.{column_name}: {e}")
+            logger.warning(f"Failed to profile '{table_name}.{column_name}': {e}")
             return {
                 "null_ratio": "N/A",
                 "distinct_count": "N/A",

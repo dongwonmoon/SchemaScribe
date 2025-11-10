@@ -103,7 +103,7 @@ class DbtYamlWriter:
                 with open(file_path, "r", encoding="utf-8") as f:
                     data = self.yaml.load(f)
                     if not data:
-                        logger.info(f"Skipping empty YAML file: {file_path}")
+                        logger.info(f"Skipping empty YAML file: '{file_path}'")
                         continue
                     self.yaml_files[file_path] = data
 
@@ -208,11 +208,11 @@ class DbtYamlWriter:
 
         if not node_config:
             logger.warning(
-                f"Could not find model '{model_name}' in {file_path}"
+                f"Could not find model '{model_name}' in '{file_path}'"
             )
             return False
 
-        logger.info(f" -> Checking model: '{model_name}' in {file_path}")
+        logger.info(f" -> Checking model: '{model_name}' in '{file_path}'")
 
         ai_model_desc = ai_model_data.get("model_description")
         if ai_model_desc and not node_config.get("description"):
@@ -310,7 +310,7 @@ class DbtYamlWriter:
         if target_yaml_path in self.yaml_files:
             # File exists, append model to it
             logger.info(
-                f"   -> Appending stub to existing file: {target_yaml_path}"
+                f"   -> Appending stub to existing file: '{target_yaml_path}'"
             )
             if "models" not in self.yaml_files[target_yaml_path]:
                 self.yaml_files[target_yaml_path]["models"] = []
@@ -318,7 +318,7 @@ class DbtYamlWriter:
 
         else:
             # File does not exist, create new
-            logger.info(f"   -> Creating new file for stub: {target_yaml_path}")
+            logger.info(f"   -> Creating new file for stub: '{target_yaml_path}'")
             new_yaml_data = CommentedMap()
             new_yaml_data["version"] = 2
             new_yaml_data["models"] = [new_model_stub]

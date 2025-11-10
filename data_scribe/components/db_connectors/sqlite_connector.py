@@ -110,7 +110,7 @@ class SQLiteConnector(BaseConnector):
                 "Database connection not established. Call connect() first."
             )
 
-        logger.info(f"Fetching columns for table: {table_name}")
+        logger.info(f"Fetching columns for table: '{table_name}'")
         # Use the PRAGMA table_info command to get column metadata
         self.cursor.execute(f"PRAGMA table_info('{table_name}');")
         # The result of PRAGMA table_info is a tuple: (cid, name, type, notnull, dflt_value, pk)
@@ -118,7 +118,7 @@ class SQLiteConnector(BaseConnector):
         columns = [
             {"name": col[1], "type": col[2]} for col in self.cursor.fetchall()
         ]
-        logger.info(f"Found {len(columns)} columns in table {table_name}.")
+        logger.info(f"Found {len(columns)} columns in table '{table_name}'.")
         return columns
 
     def get_views(self) -> List[Dict[str, str]]:
@@ -182,7 +182,7 @@ class SQLiteConnector(BaseConnector):
                         }
                     )
             except sqlite3.Error as e:
-                logger.warning(f"Failed to get FKs for table {table_name}: {e}")
+                logger.warning(f"Failed to get FKs for table '{table_name}': {e}")
 
         logger.info(f"Found {len(foreign_keys)} foreign key relationships.")
         return foreign_keys
@@ -230,7 +230,7 @@ class SQLiteConnector(BaseConnector):
             # Handle case for an empty table to avoid division by zero.
             if total_count == 0:
                 logger.info(
-                    f"  - Profile for {table_name}.{column_name}: Table is empty."
+                    f"  - Profile for '{table_name}.{column_name}': Table is empty."
                 )
                 return {
                     "null_ratio": 0,
@@ -249,11 +249,11 @@ class SQLiteConnector(BaseConnector):
                 "distinct_count": distinct_count,
                 "is_unique": is_unique,
             }
-            logger.info(f"  - Profile for {table_name}.{column_name}: {stats}")
+            logger.info(f"  - Profile for '{table_name}.{column_name}': {stats}")
             return stats
         except sqlite3.Error as e:
             logger.warning(
-                f"Failed to profile column {table_name}.{column_name}: {e}",
+                f"Failed to profile column '{table_name}.{column_name}': {e}",
                 exc_info=True,
             )
             return {

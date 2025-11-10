@@ -81,7 +81,7 @@ class DbtCatalogGenerator:
             }
             ```
         """
-        logger.info(f"dbt catalog generation started for {dbt_project_dir}")
+        logger.info(f"Dbt catalog generation started for {dbt_project_dir}")
         # Initialize the manifest parser and extract dbt models.
         parser = DbtManifestParser(dbt_project_dir)
         models = parser.models
@@ -92,7 +92,7 @@ class DbtCatalogGenerator:
         for model in models:
             model_name = model["name"]
             raw_sql = model["raw_sql"]
-            logger.info(f"Processing dbt model: {model_name}")
+            logger.info(f"Processing dbt model: '{model_name}'")
 
             # 1. Generate a high-level description for the dbt model.
             model_prompt = DBT_MODEL_PROMPT.format(
@@ -103,7 +103,7 @@ class DbtCatalogGenerator:
             )
 
             # 2. Generate a Mermaid.js lineage chart for the model's direct parents.
-            logger.info(f"  - Generating Mermaid lineage for: {model_name}")
+            logger.info(f"  - Generating Mermaid lineage for: '{model_name}'")
             lineage_prompt = DBT_MODEL_LINEAGE_PROMPT.format(
                 model_name=model_name, raw_sql=raw_sql
             )
@@ -160,5 +160,5 @@ class DbtCatalogGenerator:
                 "original_file_path": model["original_file_path"],
             }
 
-        logger.info("dbt catalog generation finished.")
+        logger.info("Dbt catalog generation finished.")
         return catalog_data
