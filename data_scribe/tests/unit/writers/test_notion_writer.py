@@ -100,9 +100,14 @@ def test_notion_writer_success(mock_notion_client, mock_db_catalog_data):
     # Check that blocks were generated
     blocks = create_kwargs["children"]
     assert len(blocks) > 0
-    assert blocks[0]["type"] == "heading_2"  # "🔎 Views"
+    assert blocks[0]["type"] == "heading_2"  # "🚀 Entity Relationship Diagram (ERD)"
     assert (
-        blocks[0]["heading_2"]["rich_text"][0]["text"]["content"] == "🔎 Views"
+        blocks[0]["heading_2"]["rich_text"][0]["text"]["content"] == "🚀 Entity Relationship Diagram (ERD)"
+    )
+    assert blocks[1]["type"] == "code"  # "mermaid"
+    assert blocks[2]["type"] == "heading_2"  # "🔎 Views"
+    assert (
+        blocks[2]["heading_2"]["rich_text"][0]["text"]["content"] == "🔎 Views"
     )
     # Find the table H2
     table_h2 = next(
