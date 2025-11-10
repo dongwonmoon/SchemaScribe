@@ -257,6 +257,13 @@ def _prompt_writer_params(
             env_data["CONFLUENCE_API_TOKEN"] = token
         params["api_token"] = "${CONFLUENCE_API_TOKEN}"
 
+    elif writer_type == "notion":
+        params["parent_page_id"] = typer.prompt("Notion Parent Page ID")
+        if "NOTION_API_TOKEN" not in env_data:
+            token = typer.prompt("Notion API Token (sensitive)", hide_input=True)
+            env_data["NOTION_API_TOKEN"] = token
+        params["api_token"] = "${NOTION_API_TOKEN}"
+
     return params
 
 
