@@ -65,8 +65,8 @@ def test_db_workflow_end_to_end(
     # 5. Check for ERD information
     assert "## 🚀 Entity Relationship Diagram (ERD)" in content
     assert "erDiagram" in content
-    assert "orders ||--o{ users" in content
-    assert "orders ||--o{ products" in content
+    assert '"orders" ||--o{ "users"' in content
+    assert '"orders" ||--o{ "products"' in content
 
     # 6. Verify the LLM client was called
     # The number of calls depends on tables, columns, and views.

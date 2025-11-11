@@ -1,8 +1,9 @@
 """
-This module is the main entry point for the Schema Scribe application.
+This module is the main entry point for the Schema Scribe CLI application.
 
-When executed as the main script, it invokes the Typer CLI application defined in the `app` module.
-This allows the application to be run from the command line using `python -m schema_scribe.main`.
+This script is the target for the `schema-scribe` console script entry point
+defined in `pyproject.toml`. When executed, it invokes the Typer CLI application
+defined in the `app` module.
 """
 
 from schema_scribe.app import app

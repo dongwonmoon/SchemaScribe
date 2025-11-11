@@ -1,9 +1,10 @@
 """
-This module provides a writer for pushing generated data catalog descriptions
-back into a PostgreSQL database as comments.
+This module provides `PostgresCommentWriter`, a `BaseWriter` implementation
+that pushes generated data catalog descriptions back into a PostgreSQL database
+as native database comments.
 
-It implements the `BaseWriter` interface and uses `COMMENT ON` SQL statements
-to update descriptions for tables, views, and columns directly within the database.
+It uses `COMMENT ON` SQL statements to update descriptions for tables, views,
+and columns directly within the database's metadata catalog.
 """
 
 from typing import Dict, Any
@@ -23,88 +24,84 @@ logger = get_logger(__name__)
 
 class PostgresCommentWriter(BaseWriter):
     """
-    Handles writing the generated catalog back to a PostgreSQL database
+    Implements `BaseWriter` to write the catalog back to a PostgreSQL database
     using `COMMENT ON` SQL statements.
 
-    This writer updates descriptions for tables, views, and columns directly
-    in the database's metadata. It requires an active `PostgresConnector` instance.
+    This specialized writer requires an active `PostgresConnector` instance to
+    execute SQL commands that update the metadata for tables, views, and columns
+    directly in the database. The entire operation is performed within a single
+    database transaction.
     """
 
     def write(self, catalog_data: Dict[str, Any], **kwargs):
         """
-        Writes the catalog data (descriptions) back to the PostgreSQL database
-        as table, view, and column comments.
+        Writes catalog descriptions back to the PostgreSQL database as comments.
+
+        This method orchestrates the process:
+        1.  Validates that a connected `PostgresConnector` is provided via `kwargs`.
+        2.  Iterates through views and tables in the `catalog_data`.
+        3.  Constructs and executes `COMMENT ON` statements for each asset.
+        4.  Commits the transaction upon success or rolls back on failure.
 
         Args:
             catalog_data: The dictionary containing the structured data catalog.
-            **kwargs: Additional writer-specific arguments. Expected to contain:
-                      - `db_connector` (PostgresConnector): An initialized and
-                        connected instance of `PostgresConnector`.
+            **kwargs: Must contain `db_connector`, which must be an initialized
+                      and connected instance of `PostgresConnector`.
 
         Raises:
-            ConfigError: If `db_connector` is missing from `kwargs` or is not
-                         an instance of `PostgresConnector`.
+            ConfigError: If `db_connector` is missing or is not a `PostgresConnector`.
             ConnectorError: If the provided `db_connector` is not connected.
-            WriterError: If an error occurs during the process of writing comments
-                         to the database.
+            WriterError: If an error occurs during the database transaction.
         """
         logger.info("Starting to write comments back to PostgreSQL database...")
 
-        # 1. Get the database connector from kwargs
         db_connector: BaseConnector = kwargs.get("db_connector")
-
-        if not db_connector:
-            logger.error(
-                "PostgresCommentWriter 'write' method missing 'db_connector' in kwargs."
-            )
-            raise ConfigError("PostgresCommentWriter requires 'db_connector'.")
-
         if not isinstance(db_connector, PostgresConnector):
-            logger.error(
-                f"PostgresCommentWriter only works with PostgresConnector, got {type(db_connector)}"
-            )
             raise ConfigError(
-                "PostgresCommentWriter is only compatible with 'postgres' db_profile."
+                "PostgresCommentWriter requires a 'postgres' db_profile and its active connector."
             )
-
         if not db_connector.connection or not db_connector.cursor:
-            logger.error("The provided db_connector is not connected.")
-            raise ConnectorError("db_connector is not connected.")
+            raise ConnectorError(
+                "The provided PostgresConnector is not connected."
+            )
 
         cursor = db_connector.cursor
         schema_name = db_connector.schema_name
 
         try:
-            # 2. Write View Comments
+            # Process Views
             for view in catalog_data.get("views", []):
-                view_name = view["name"]
-                description = view.get("ai_summary", "").replace(
-                    "'", "''"
-                )  # Basic SQL escaping
-
+                description = view.get("ai_summary", "").replace("'", "''")
                 logger.info(
-                    f"  - Writing comment for VIEW: '{schema_name}.{view_name}'"
+                    f"  - Writing comment for VIEW: '{schema_name}.{view['name']}'"
                 )
-                query = f'COMMENT ON VIEW "{schema_name}"."{view_name}" IS %s;'
+                query = (
+                    f'COMMENT ON VIEW "{schema_name}"."{view["name"]}" IS %s;'
+                )
                 cursor.execute(query, (description,))
 
-            # 3. Write Table and Column Comments
+            # Process Tables and Columns
             for table in catalog_data.get("tables", []):
                 table_name = table["name"]
+                # Write table-level comment if available
+                if table.get("ai_summary"):
+                    table_desc = table["ai_summary"].replace("'", "''")
+                    logger.info(
+                        f"  - Writing comment for TABLE: '{schema_name}.{table_name}'"
+                    )
+                    query = f'COMMENT ON TABLE "{schema_name}"."{table_name}" IS %s;'
+                    cursor.execute(query, (table_desc,))
 
+                # Write column-level comments
                 for column in table.get("columns", []):
                     col_name = column["name"]
-                    description = column.get("description", "").replace(
-                        "'", "''"
-                    )  # Basic SQL escaping
-
+                    col_desc = column.get("description", "").replace("'", "''")
                     logger.info(
                         f"  - Writing comment for COLUMN: '{schema_name}.{table_name}.{col_name}'"
                     )
                     query = f'COMMENT ON COLUMN "{schema_name}"."{table_name}"."{col_name}" IS %s;'
-                    cursor.execute(query, (description,))
+                    cursor.execute(query, (col_desc,))
 
-            # 4. Commit the changes to the database
             db_connector.connection.commit()
             logger.info("Successfully wrote all comments to PostgreSQL.")
 
@@ -112,7 +109,7 @@ class PostgresCommentWriter(BaseWriter):
             logger.error(
                 f"Error writing comments to PostgreSQL: {e}", exc_info=True
             )
-            db_connector.connection.rollback()  # Rollback on failure
+            db_connector.connection.rollback()
             raise WriterError(
                 f"Error writing comments to PostgreSQL: {e}"
             ) from e

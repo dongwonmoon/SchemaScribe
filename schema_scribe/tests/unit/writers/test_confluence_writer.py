@@ -34,10 +34,10 @@ def mock_db_catalog_data():
         ],
         "foreign_keys": [
             {
-                "from_table": "orders",
-                "to_table": "users",
-                "from_column": "user_id",
-                "to_column": "id",
+                "source_table": "orders",
+                "target_table": "users",
+                "source_column": "user_id",
+                "target_column": "id",
             }
         ],
     }

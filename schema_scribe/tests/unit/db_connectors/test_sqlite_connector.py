@@ -32,16 +32,16 @@ def test_sqlite_connector_integration(sqlite_db):
     assert len(fks) == 2
     # Check for presence of FKs regardless of order
     expected_fk1 = {
-        "from_table": "orders",
-        "to_table": "users",
-        "from_column": "user_id",
-        "to_column": "id",
+        "source_table": "orders",
+        "target_table": "users",
+        "source_column": "user_id",
+        "target_column": "id",
     }
     expected_fk2 = {
-        "from_table": "orders",
-        "to_table": "products",
-        "from_column": "product_id",
-        "to_column": "id",
+        "source_table": "orders",
+        "target_table": "products",
+        "source_column": "product_id",
+        "target_column": "id",
     }
     assert expected_fk1 in fks or expected_fk2 in fks
 
@@ -60,7 +60,6 @@ def test_sqlite_connector_profiling(sqlite_db_with_data):
     # 5 total, 0 null, 5 distinct -> unique
     stats_id = connector.get_column_profile("profile_test", "id")
     assert stats_id == {
-        "total_count": 5,
         "null_ratio": 0.0,
         "distinct_count": 5,
         "is_unique": True,
@@ -72,7 +71,6 @@ def test_sqlite_connector_profiling(sqlite_db_with_data):
         "profile_test", "nullable_col"
     )
     assert stats_nullable == {
-        "total_count": 5,
         "null_ratio": 0.4,  # 2 / 5
         "distinct_count": 2,
         "is_unique": False,
@@ -84,7 +82,6 @@ def test_sqlite_connector_profiling(sqlite_db_with_data):
         "profile_test", "category_col"
     )
     assert stats_category == {
-        "total_count": 5,
         "null_ratio": 0.0,
         "distinct_count": 2,
         "is_unique": False,

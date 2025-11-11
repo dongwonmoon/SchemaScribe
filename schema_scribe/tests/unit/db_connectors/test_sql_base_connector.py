@@ -44,7 +44,6 @@ def test_sql_base_connector_profiling_logic():
 
     # Verify the stats were calculated correctly
     assert stats == {
-        "total_count": 100,
         "null_ratio": 0.1,  # 10 / 100
         "distinct_count": 90,
         "is_unique": False,  # 90 != 100

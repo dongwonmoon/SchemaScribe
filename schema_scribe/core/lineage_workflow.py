@@ -1,9 +1,13 @@
 """
-This module defines the workflow for the 'lineage' command.
+This module defines the workflow for the `schema-scribe lineage` command.
 
-It combines physical database lineage (from foreign keys) with logical dbt
-project lineage (from refs and sources) to generate a single, comprehensive
-end-to-end data lineage graph.
+Its key innovation is the ability to merge two different types of lineage into
+a single, unified graph:
+1.  **Physical Lineage**: Foreign key relationships from the live database.
+2.  **Logical Lineage**: `ref()` and `source()` dependencies from a dbt project.
+
+The result is a comprehensive, end-to-end data lineage graph that provides a
+holistic view of data flow across the entire system.
 """
 
 import typer
@@ -19,13 +23,16 @@ logger = get_logger(__name__)
 
 class GlobalLineageGenerator:
     """
-    Builds a global lineage graph from multiple sources.
+    Builds a global, unified lineage graph from multiple sources.
 
-    This class merges physical foreign key relationships from a database with
-    logical dependencies from a dbt project (`ref` and `source` calls) into a
-    single graph structure. It intelligently assigns and prioritizes styles to
-    nodes to ensure, for example, that a dbt model is always styled as a model,
-    even if it's also a plain database table.
+    This class takes a list of physical foreign key relationships and a list of
+    parsed dbt models (containing logical dependencies) and merges them into a
+    single graph structure.
+
+    It uses a style priority system to ensure nodes are displayed correctly.
+    For example, a dbt model that is also a database table will always be
+    styled as a "model" (highest priority) rather than a generic table.
+    The final output is a string formatted for Mermaid.js.
     """
 
     def __init__(
@@ -35,16 +42,17 @@ class GlobalLineageGenerator:
         Initializes the GlobalLineageGenerator.
 
         Args:
-            db_fks: A list of foreign key relationships from the database.
-            dbt_models: A list of parsed dbt models, including their dependencies.
+            db_fks: A list of foreign key relationships from the database, as
+                    returned by a `BaseConnector`.
+            dbt_models: A list of parsed dbt models from `DbtManifestParser`,
+                        including their `dependencies`.
         """
         self.db_fks = db_fks
         self.dbt_models = dbt_models
-
-        # Stores nodes and their assigned style, e.g., {"stg_orders": "box"}
-        self.nodes: Dict[str, str] = {}
-        # Stores unique edges to prevent duplicates in the graph
-        self.edges: Set[str] = set()
+        self.nodes: Dict[str, str] = {}  # Stores nodes and their assigned style
+        self.edges: Set[str] = (
+            set()
+        )  # Stores unique edges to prevent duplicates
 
     def _get_style_priority(self, style: str) -> int:
         """Assigns a priority to a node style. Higher numbers win."""
@@ -56,13 +64,13 @@ class GlobalLineageGenerator:
             return 1  # db table (lowest priority)
         return 0
 
-    def _add_node(self, name: str, style: str = "box"):
+    def _add_node(self, name: str, style: str):
         """
         Adds a node to the graph, applying style based on priority.
 
-        If the node already exists, its style is only updated if the new
-        style has a higher priority than the current one. This ensures a
-        dbt model is always styled as a model, not as a generic DB table.
+        If a node already exists, its style is only updated if the new style
+        has a higher priority. This ensures a dbt model is always styled as a
+        'model' (`box`), not as a generic 'db' table.
         """
         current_style = self.nodes.get(name)
         current_priority = (
@@ -82,12 +90,17 @@ class GlobalLineageGenerator:
 
     def generate_graph(self) -> str:
         """
-        Generates the complete Mermaid.js graph string.
+        Generates the complete Mermaid.js graph definition as a string.
 
-        It processes database foreign keys first, then dbt dependencies,
-        allowing the style prioritization logic in `_add_node` to work
-        correctly. Finally, it assembles the unique nodes and edges into a
-        single string.
+        The method follows a clear three-step process:
+        1.  **Process Physical Lineage**: Adds nodes and edges from database
+            foreign keys, styling them as low-priority 'db' tables.
+        2.  **Process Logical Lineage**: Adds nodes and edges from dbt model
+            dependencies. The style priority system ensures that any nodes
+            that are dbt models or sources are styled correctly, overwriting
+            the 'db' style if necessary.
+        3.  **Assemble Graph**: Combines the unique, prioritized nodes and
+            edges into a single, valid Mermaid.js graph string.
 
         Returns:
             A string containing the full Mermaid.js graph definition.
@@ -96,10 +109,8 @@ class GlobalLineageGenerator:
 
         # 1. Process DB Foreign Keys (Physical Lineage)
         for fk in self.db_fks:
-            from_table = fk["from_table"]
-            to_table = fk["to_table"]
-
-            # Add nodes with 'db' style (lowest priority)
+            from_table = fk["source_table"]
+            to_table = fk["target_table"]
             self._add_node(from_table, "db")
             self._add_node(to_table, "db")
             self._add_edge(from_table, to_table, "FK")
@@ -107,9 +118,7 @@ class GlobalLineageGenerator:
         # 2. Process dbt Model Dependencies (Logical Lineage)
         for model in self.dbt_models:
             model_name = model["name"]
-            self._add_node(
-                model_name, "box"  # Style dbt models (highest priority)
-            )
+            self._add_node(model_name, "box")  # dbt models are highest priority
 
             for dep in model.get("dependencies", []):
                 # A dependency with a dot is a source (e.g., 'jaffle_shop.customers')
@@ -122,8 +131,6 @@ class GlobalLineageGenerator:
 
         # 3. Combine into a Mermaid string
         graph_lines = ["graph TD;"]
-
-        # Define all nodes with their final, prioritized styles
         node_definitions = []
         for name, style in self.nodes.items():
             if style == "box":
@@ -134,7 +141,7 @@ class GlobalLineageGenerator:
                 node_definitions.append(f'    {name}(("{name}"))')  # dbt source
 
         graph_lines.extend(sorted(node_definitions))
-        graph_lines.append("")  # Spacer for readability
+        graph_lines.append("")
         graph_lines.extend(sorted(list(self.edges)))
 
         return "\n".join(graph_lines)
@@ -143,6 +150,9 @@ class GlobalLineageGenerator:
 class LineageWorkflow:
     """
     Manages the end-to-end workflow for the `schema-scribe lineage` command.
+
+    This class orchestrates the process of fetching data from both the database
+    and dbt, generating the unified lineage graph, and writing it to a file.
     """
 
     def __init__(
@@ -154,6 +164,12 @@ class LineageWorkflow:
     ):
         """
         Initializes the LineageWorkflow with parameters from the CLI.
+
+        Args:
+            config_path: The path to the configuration file.
+            db_profile: The DB profile for scanning physical foreign keys.
+            dbt_project_dir: The path to the dbt project for logical lineage.
+            output_profile: The output profile (must be 'mermaid' type).
         """
         self.config_path = config_path
         self.db_profile_name = db_profile
@@ -164,11 +180,34 @@ class LineageWorkflow:
     def run(self):
         """
         Executes the full lineage generation and writing workflow.
-        """
 
+        This method follows four main steps:
+        1.  **Get Physical Lineage**: Connects to the database to fetch all
+            foreign key relationships.
+        2.  **Get Logical Lineage**: Parses the dbt `manifest.json` to get all
+            model dependencies (`ref` and `source`).
+        3.  **Generate Graph**: Instantiates `GlobalLineageGenerator` with both
+            sets of lineage data to produce a unified Mermaid.js graph string.
+        4.  **Write to File**: Uses a `MermaidWriter` to save the graph to the
+            specified output file.
+        """
         # 1. Get Physical Lineage (FKs) from DB
+        db_fks = self._fetch_database_foreign_keys()
+
+        # 2. Get Logical Lineage (refs) from dbt
+        dbt_models = self._parse_dbt_models()
+
+        # 3. Generate Graph
+        generator = GlobalLineageGenerator(db_fks, dbt_models)
+        mermaid_graph = generator.generate_graph()
+        catalog_data = {"mermaid_graph": mermaid_graph}
+
+        # 4. Write to file
+        self._write_output(catalog_data)
+
+    def _fetch_database_foreign_keys(self) -> List[Dict[str, str]]:
+        """Connects to the DB and retrieves foreign key relationships."""
         db_connector = None
-        db_fks = []
         try:
             logger.info(
                 f"Connecting to DB '{self.db_profile_name}' for FK scan..."
@@ -176,8 +215,9 @@ class LineageWorkflow:
             db_params = self.config["db_connections"][self.db_profile_name]
             db_type = db_params.pop("type")
             db_connector = get_db_connector(db_type, db_params)
-            db_fks = db_connector.get_foreign_keys()
-            logger.info(f"Found {len(db_fks)} foreign key relationships.")
+            fks = db_connector.get_foreign_keys()
+            logger.info(f"Found {len(fks)} foreign key relationships.")
+            return fks
         except Exception as e:
             logger.error(f"Failed to connect to database: {e}")
             raise typer.Exit(code=1)
@@ -185,34 +225,30 @@ class LineageWorkflow:
             if db_connector:
                 db_connector.close()
 
-        # 2. Get Logical Lineage (refs) from dbt
+    def _parse_dbt_models(self) -> List[Dict[str, Any]]:
+        """Parses the dbt manifest to get model information."""
         logger.info(
             f"Parsing dbt project at '{self.dbt_project_dir}' for dependencies..."
         )
         parser = DbtManifestParser(self.dbt_project_dir)
-        dbt_models = parser.models
-        logger.info(f"Parsed {len(dbt_models)} dbt models.")
+        models = parser.models
+        logger.info(f"Parsed {len(models)} dbt models.")
+        return models
 
-        # 3. Generate Graph
-        generator = GlobalLineageGenerator(db_fks, dbt_models)
-        mermaid_graph = generator.generate_graph()
-
-        catalog_data = {"mermaid_graph": mermaid_graph}
-
-        # 4. Write to file
+    def _write_output(self, catalog_data: Dict[str, Any]):
+        """Writes the generated graph to a file using a MermaidWriter."""
         try:
             writer_params = self.config["output_profiles"][
                 self.output_profile_name
             ]
             writer_type = writer_params.pop("type")
-            # The workflow requires a 'mermaid' writer type.
             if writer_type != "mermaid":
                 logger.warning(
-                    f"Output profile '{self.output_profile_name}' is not type 'mermaid'. Using MermaidWriter anyway."
+                    f"Output profile '{self.output_profile_name}' is not type 'mermaid'. "
+                    "The lineage workflow requires a 'mermaid' writer. Using it anyway."
                 )
 
             writer = get_writer("mermaid")  # Force MermaidWriter
-
             writer.write(catalog_data, **writer_params)
             logger.info(
                 f"Global lineage graph written successfully using output profile: '{self.output_profile_name}'."

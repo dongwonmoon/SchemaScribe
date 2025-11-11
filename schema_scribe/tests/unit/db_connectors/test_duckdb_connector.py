@@ -128,8 +128,8 @@ def test_duckdb_get_tables_s3_scan(mock_duckdb_lib: MagicMock):
 def test_duckdb_get_columns_file_scan(mock_duckdb_lib: MagicMock):
     """Tests get_columns constructs the correct read_auto query for files."""
     mock_duckdb_lib.mock_cursor.fetchall.return_value = [
-        ("id", "INTEGER"),
-        ("email", "VARCHAR"),
+        ("id", "INTEGER", "NO", "PRI", None, None),
+        ("email", "VARCHAR", "YES", "NO", None, None),
     ]
 
     connector = DuckDBConnector()
@@ -139,8 +139,20 @@ def test_duckdb_get_columns_file_scan(mock_duckdb_lib: MagicMock):
     )  # table_name is just the file name
 
     assert columns == [
-        {"name": "id", "type": "INTEGER"},
-        {"name": "email", "type": "VARCHAR"},
+        {
+            "name": "id",
+            "type": "INTEGER",
+            "description": "",
+            "is_nullable": False,
+            "is_pk": True,
+        },
+        {
+            "name": "email",
+            "type": "VARCHAR",
+            "description": "",
+            "is_nullable": True,
+            "is_pk": False,
+        },
     ]
     # Should build the full path
     expected_query = "DESCRIBE SELECT * FROM read_auto('s3://my-bucket/data/users.parquet', SAMPLE_SIZE=50000);"
@@ -164,7 +176,6 @@ def test_duckdb_get_column_profile_file_scan(mock_duckdb_lib: MagicMock):
 
     # Should calculate stats correctly
     assert stats == {
-        "total_count": 100,
         "null_ratio": 0.1,
         "distinct_count": 90,
         "is_unique": False,

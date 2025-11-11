@@ -33,10 +33,10 @@ def mock_db_catalog_data():
         ],
         "foreign_keys": [
             {
-                "from_table": "orders",
-                "to_table": "users",
-                "from_column": "user_id",
-                "to_column": "id",
+                "source_table": "orders",
+                "target_table": "users",
+                "source_column": "user_id",
+                "target_column": "id",
             }
         ],
     }
@@ -57,7 +57,7 @@ def test_markdown_writer_write(tmp_path, mock_db_catalog_data):
 
     assert "# 📁 Data Catalog for test_db" in content
     assert "## 🚀 Entity Relationship Diagram (ERD)" in content
-    assert "orders ||--o{ users" in content  # Mermaid erDiagram syntax
+    assert '"orders" ||--o{ "users"' in content  # Mermaid erDiagram syntax
     assert "## 🔎 Views" in content
     assert "### 📄 View: `user_views`" in content
     assert "> A summary of the view." in content

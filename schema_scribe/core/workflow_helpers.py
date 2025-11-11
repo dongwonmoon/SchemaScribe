@@ -1,8 +1,9 @@
 """
 This module provides helper functions shared across different workflows.
 
-It includes functionality for loading the main application configuration and for
-initializing the LLM client based on that configuration.
+These functions are designed to centralize common, repetitive tasks found in
+the main workflow classes, such as loading the application configuration and
+initializing the LLM client. This promotes code reuse and consistency.
 """
 
 import typer
@@ -19,7 +20,12 @@ logger = get_logger(__name__)
 
 def load_config_from_path(config_path: str) -> Dict[str, Any]:
     """
-    Loads the YAML configuration file from the given path.
+    Loads, parses, and returns the YAML configuration file from a given path.
+
+    This function centralizes the logic for reading the main `config.yaml` file
+    and provides standardized error handling for file-not-found or parsing errors.
+
+    Note: The recommended way to create this file is with `schema-scribe init`.
 
     Args:
         config_path: The path to the `config.yaml` file.
@@ -48,7 +54,12 @@ def load_config_from_path(config_path: str) -> Dict[str, Any]:
 
 def init_llm(config: Dict[str, Any], llm_profile_name: str) -> BaseLLMClient:
     """
-    Initializes the LLM client based on the specified profile.
+    Initializes and returns an LLM client based on a specified profile.
+
+    This helper function encapsulates the logic for instantiating an LLM client:
+    1.  Looks up the specified `llm_profile_name` in the configuration.
+    2.  Extracts the `provider` (e.g., 'openai', 'google') and other parameters.
+    3.  Uses the `get_llm_client` factory to create the correct client instance.
 
     Args:
         config: The application configuration dictionary.

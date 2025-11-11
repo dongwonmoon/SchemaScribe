@@ -2,8 +2,8 @@
 Main FastAPI application for the Schema Scribe server.
 
 This module defines the FastAPI application and its API endpoints. It provides
-a web-based interface to run Schema Scribe's core documentation workflows,
-reusing the existing workflow classes for consistency.
+a RESTful API wrapper around the core `DbWorkflow` and `DbtWorkflow` classes,
+allowing them to be triggered programmatically.
 """
 
 import os
@@ -11,8 +11,7 @@ from fastapi import FastAPI, HTTPException
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
-from typing import List, Dict, Optional
-from pydantic import BaseModel
+from typing import List, Optional
 
 from schema_scribe.core.workflow_helpers import load_config
 from schema_scribe.core.db_workflow import DbWorkflow
@@ -26,16 +25,14 @@ logger = get_logger(__name__)
 app = FastAPI(
     title="Schema Scribe Server",
     description="API for running Schema Scribe documentation workflows.",
+    version="1.0.0",
 )
 
-SERVER_DIR = os.path.dirname(os.path.abspath(__file__))
-STATIC_DIR = os.path.join(SERVER_DIR, "static")
-
-# --- API Request/Response Models ---
+# --- Pydantic Models for API Request/Response Validation ---
 
 
 class ProfileInfo(BaseModel):
-    """Defines the structure for returning available profile names."""
+    """Defines the response structure for the profile discovery endpoint."""
 
     db_connections: List[str]
     llm_providers: List[str]
@@ -43,7 +40,7 @@ class ProfileInfo(BaseModel):
 
 
 class RunDbWorkflowRequest(BaseModel):
-    """Defines the request body for running the 'db' workflow."""
+    """Defines the request body for triggering the 'db' workflow."""
 
     db_profile: str
     llm_profile: str
@@ -52,22 +49,18 @@ class RunDbWorkflowRequest(BaseModel):
 
 class RunDbtWorkflowRequest(BaseModel):
     """
-    Defines the request body for running the 'dbt' workflow.
-
+    Defines the request body for triggering the 'dbt' workflow.
     The mode flags (`update_yaml`, `check`, `drift`) are mutually exclusive.
     """
 
     dbt_project_dir: str
     llm_profile: Optional[str] = None
-
-    # Modes (mutually exclusive)
+    db_profile: Optional[str] = None  # Required only for drift mode
+    output_profile: Optional[str] = None
+    # Mode flags
     update_yaml: bool = False
     check: bool = False
     drift: bool = False
-
-    # Other args
-    db_profile: Optional[str] = None  # Required for drift mode
-    output_profile: Optional[str] = None
 
 
 # --- API Endpoints ---
@@ -76,19 +69,16 @@ class RunDbtWorkflowRequest(BaseModel):
 @app.get("/api/profiles", response_model=ProfileInfo)
 def get_profiles():
     """
-    Loads and returns the available profiles from the `config.yaml` file.
+    A discovery endpoint that returns available profiles from `config.yaml`.
 
     This is useful for UIs that need to populate dropdown menus with available
     connection, LLM, and output options.
 
     Raises:
-        HTTPException(404): If the `config.yaml` file is not found in the
-                            directory where the server is running.
-        HTTPException(500): If there is a general error loading or parsing
-                            the configuration file.
+        HTTPException(404): If `config.yaml` is not found.
+        HTTPException(500): For other configuration loading errors.
     """
     try:
-        # We assume config.yaml is in the directory where the server is run
         config = load_config("config.yaml")
         return {
             "db_connections": list(config.get("db_connections", {}).keys()),
@@ -96,133 +86,107 @@ def get_profiles():
             "output_profiles": list(config.get("output_profiles", {}).keys()),
         }
     except FileNotFoundError:
-        raise HTTPException(status_code=404, detail="config.yaml not found.")
+        raise HTTPException(
+            status_code=404,
+            detail="config.yaml not found in the current directory.",
+        )
     except Exception as e:
         raise HTTPException(
             status_code=500, detail=f"Failed to load config: {e}"
         )
 
 
-@app.post("/api/run/db")
+@app.post("/api/run/db", status_code=200)
 def run_db_workflow(request: RunDbWorkflowRequest):
     """
-    Runs the 'db' documentation workflow based on the provided profiles.
+    Runs the 'db' documentation workflow.
 
-    This endpoint triggers a synchronous run of the `DbWorkflow`, which connects
-    to a database, generates documentation, and writes it to the specified output.
+    This endpoint triggers a synchronous run of the `DbWorkflow`. It maps internal
+    `DataScribeError` exceptions to HTTP 400 Bad Request responses.
 
     Args:
-        request: A `RunDbWorkflowRequest` containing the names of the db, llm,
-                 and output profiles to use.
+        request: A `RunDbWorkflowRequest` with the db, llm, and output profiles.
 
     Returns:
-        A success message if the workflow completes without errors.
-
-    Raises:
-        HTTPException(400): If there is a configuration or operational error
-                            within the Schema Scribe workflow (e.g., bad profile name).
-        HTTPException(500): For any other unexpected errors during the workflow.
+        A success message if the workflow completes.
     """
     try:
         logger.info(
             f"Received request to run 'db' workflow with profile: {request.db_profile}"
         )
-
-        # --- REUSE THE WORKFLOW ---
-        # We instantiate the workflow class just like the CLI does.
         workflow = DbWorkflow(
             config_path="config.yaml",
             db_profile=request.db_profile,
             llm_profile=request.llm_profile,
             output_profile=request.output_profile,
         )
-
-        # Run the workflow (this is a synchronous call)
         workflow.run()
-
         return {
             "status": "success",
             "message": f"DB workflow completed for {request.db_profile}.",
         }
-
     except DataScribeError as e:
-        # Catch our custom exceptions and return a 400 Bad Request
         logger.error(
             f"Schema Scribe error running workflow: {e}", exc_info=True
         )
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
-        # Catch any other unexpected errors
         logger.error(f"Unexpected error running workflow: {e}", exc_info=True)
         raise HTTPException(
             status_code=500, detail=f"An unexpected error occurred: {e}"
         )
 
 
-@app.post("/api/run/dbt")
+@app.post("/api/run/dbt", status_code=200)
 def run_dbt_workflow(request: RunDbtWorkflowRequest):
     """
     Runs the 'dbt' documentation workflow with various modes.
 
-    This endpoint triggers a synchronous run of the `DbtWorkflow`. It can be
-    used to generate a catalog, update `schema.yml` files, or run CI checks.
-    The `interactive` mode is not supported via the API.
+    This endpoint triggers a synchronous run of the `DbtWorkflow`. It is designed
+    for programmatic use, especially in CI/CD pipelines.
+
+    - **CI Failures**: If `check` or `drift` mode is used and a failure is
+      detected, this endpoint returns an **HTTP 409 Conflict** status, which
+      can be used to fail a CI job.
+    - **Interactive Mode**: The `interactive` mode is not supported via the API
+      and is always disabled.
 
     Args:
-        request: A `RunDbtWorkflowRequest` defining the project directory
-                 and the execution mode (`update_yaml`, `check`, `drift`).
+        request: A `RunDbtWorkflowRequest` defining the project and execution mode.
 
     Returns:
-        A success message if the workflow completes.
-
-    Raises:
-        HTTPException(400): For bad requests, such as specifying multiple
-                            mutually exclusive modes.
-        HTTPException(409): For CI-related failures. If `check` is true and
-                            docs are outdated, or if `drift` is true and drift
-                            is detected, this status is returned.
-        HTTPException(500): For any other unexpected errors.
+        A success message if the workflow completes without a CI failure.
     """
     try:
         logger.info(
             f"Received request to run 'dbt' workflow for dir: {request.dbt_project_dir}"
         )
-
-        # --- Validate Inputs ---
-        mode_flags = sum([request.update_yaml, request.check, request.drift])
-        if mode_flags > 1:
+        if sum([request.update_yaml, request.check, request.drift]) > 1:
             raise HTTPException(
-                status_code=400,
-                detail="--update, --check, and --drift are mutually exclusive.",
+                status_code=400, detail="Modes are mutually exclusive."
             )
-
         if request.drift and not request.db_profile:
             raise HTTPException(
-                status_code=400, detail="--drift mode requires --db_profile."
+                status_code=400, detail="Drift mode requires a db_profile."
             )
 
-        # --- REUSE THE WORKFLOW ---
         workflow = DbtWorkflow(
             dbt_project_dir=request.dbt_project_dir,
             db_profile=request.db_profile,
             llm_profile=request.llm_profile,
-            config_path="config.yaml",  # Assume config is in the root
+            config_path="config.yaml",
             output_profile=request.output_profile,
             update_yaml=request.update_yaml,
             check=request.check,
-            interactive=False,  # <-- Interactive mode is CLI-only
+            interactive=False,  # Interactive mode is CLI-only
             drift=request.drift,
         )
-
         workflow.run()
-
         return {
             "status": "success",
             "message": f"dbt workflow completed for {request.dbt_project_dir}.",
         }
-
     except CIError as e:
-        # Return a 409 Conflict for CI failures (check or drift)
         logger.warning(f"CI check failed during API call: {e}")
         raise HTTPException(status_code=409, detail=str(e))
     except DataScribeError as e:
@@ -237,9 +201,17 @@ def run_dbt_workflow(request: RunDbtWorkflowRequest):
         )
 
 
-@app.get("/")
+# --- Static File Serving ---
+
+# Get the directory where this server file is located.
+SERVER_DIR = os.path.dirname(os.path.abspath(__file__))
+STATIC_DIR = os.path.join(SERVER_DIR, "static")
+
+
+# Serve the main index.html file from the root path.
+@app.get("/", include_in_schema=False)
 async def read_index():
-    """Serves the main index.html file."""
+    """Serves the main index.html file for the frontend."""
     index_path = os.path.join(STATIC_DIR, "index.html")
     if not os.path.exists(index_path):
         return {
@@ -248,4 +220,6 @@ async def read_index():
     return FileResponse(index_path)
 
 
+# Mount the 'static' directory to serve all other static files (CSS, JS, etc.).
+# This must come after the root endpoint to ensure the root is served correctly.
 app.mount("/", StaticFiles(directory=STATIC_DIR, html=True), name="static")

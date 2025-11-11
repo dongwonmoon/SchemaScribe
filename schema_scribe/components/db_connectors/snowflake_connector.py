@@ -2,8 +2,9 @@
 This module provides a concrete implementation of the `SqlBaseConnector` for
 Snowflake data warehouses.
 
-It uses the `snowflake-connector-python` library to handle the connection and
-overrides several metadata methods to use Snowflake-specific queries.
+It uses the `snowflake-connector-python` library and overrides several metadata
+methods from the base class to accommodate Snowflake's specific SQL dialect
+and information schema structure.
 """
 
 import snowflake.connector
@@ -21,18 +22,24 @@ class SnowflakeConnector(SqlBaseConnector):
     """
     A concrete connector for Snowflake data warehouses.
 
-    This class extends `SqlBaseConnector` and implements the `connect` method
-    specific to Snowflake. It also overrides several metadata methods to use
-    Snowflake's specific information schema structure and commands.
+    This class extends `SqlBaseConnector` but overrides most of its metadata
+    methods. This is necessary because Snowflake's `information_schema` is a
+    database-level object, requiring queries to be fully qualified (e.g.,
+    `"my_db".information_schema.tables`). It also uses Snowflake-specific
+    commands like `SHOW IMPORTED KEYS` for more reliable metadata retrieval.
     """
 
     def __init__(self):
-        """Initializes the SnowflakeConnector."""
+        """Initializes the SnowflakeConnector by calling the parent constructor."""
         super().__init__()
 
     def connect(self, db_params: Dict[str, Any]):
         """
-        Connects to a Snowflake database using the provided parameters.
+        Connects to a Snowflake account using the provided parameters.
+
+        This method fulfills the contract required by `SqlBaseConnector` by
+        setting the `self.connection`, `self.cursor`, `self.dbname`, and
+        `self.schema_name` attributes upon a successful connection.
 
         Args:
             db_params: A dictionary of connection parameters. Expected keys
@@ -40,15 +47,18 @@ class SnowflakeConnector(SqlBaseConnector):
                        `database`, and `schema`.
 
         Raises:
-            ValueError: If the 'database' parameter is missing.
+            ValueError: If a required parameter like 'database' is missing.
             ConnectorError: If the database connection fails.
         """
+        logger.info("Connecting to Snowflake...")
         try:
             self.dbname = db_params.get("database")
             self.schema_name = db_params.get("schema", "public")
 
             if not self.dbname:
-                raise ValueError("'database' parameter is required.")
+                raise ValueError(
+                    "'database' parameter is required for Snowflake."
+                )
 
             self.connection = snowflake.connector.connect(
                 user=db_params.get("user"),
@@ -64,19 +74,16 @@ class SnowflakeConnector(SqlBaseConnector):
             )
         except Exception as e:
             logger.error(f"Snowflake connection failed: {e}", exc_info=True)
-            raise ConnectorError(f"Snowflake connection failed: {e}")
+            raise ConnectorError(f"Snowflake connection failed: {e}") from e
 
     def get_tables(self) -> List[str]:
         """
         Retrieves a list of all table names in the configured schema.
 
-        This method overrides the base implementation to query Snowflake's
-        database-specific `information_schema`.
-
-        Returns:
-            A list of strings, where each string is a table name.
+        Overrides the base implementation to query Snowflake's database-specific
+        `information_schema`.
         """
-        if not self.cursor:
+        if not self.cursor or not self.dbname:
             raise ConnectorError("Must connect to the DB first.")
 
         query = f"""
@@ -85,28 +92,39 @@ class SnowflakeConnector(SqlBaseConnector):
             WHERE table_schema = %s AND table_type = 'BASE TABLE';
         """
         self.cursor.execute(query, (self.schema_name,))
-        tables = [table[0] for table in self.cursor.fetchall()]
+        tables = [row[0] for row in self.cursor.fetchall()]
         logger.info(f"Found {len(tables)} tables.")
         return tables
 
-    def get_columns(self, table_name: str) -> List[Dict[str, str]]:
+    def get_columns(self, table_name: str) -> List[Dict[str, Any]]:
         """
         Retrieves column metadata for the specified table.
 
-        This method overrides the base implementation to query Snowflake's
-        database-specific `information_schema`.
+        Overrides the base implementation to query Snowflake's `information_schema`
+        and correctly identify primary keys.
         """
-        if not self.cursor:
+        if not self.cursor or not self.dbname:
             raise ConnectorError("Must connect to the DB first.")
 
+        # Snowflake requires SHOW PRIMARY KEYS to reliably get PK info.
+        self.cursor.execute(f'SHOW PRIMARY KEYS IN TABLE "{table_name}"')
+        pk_columns = {row[4] for row in self.cursor.fetchall()}
+
         query = f"""
-            SELECT column_name, data_type
+            SELECT column_name, data_type, is_nullable
             FROM "{self.dbname}".information_schema.columns
             WHERE table_schema = %s AND table_name = %s;
         """
         self.cursor.execute(query, (self.schema_name, table_name))
         columns = [
-            {"name": col[0], "type": col[1]} for col in self.cursor.fetchall()
+            {
+                "name": row[0],
+                "type": row[1],
+                "description": "",
+                "is_nullable": row[2] == "YES",
+                "is_pk": row[0] in pk_columns,
+            }
+            for row in self.cursor.fetchall()
         ]
         logger.info(f"Found {len(columns)} columns in table '{table_name}'.")
         return columns
@@ -115,13 +133,10 @@ class SnowflakeConnector(SqlBaseConnector):
         """
         Retrieves a list of all views and their SQL definitions from the schema.
 
-        This method overrides the base implementation to query Snowflake's
-        database-specific `information_schema`.
-
-        Returns:
-            A list of dictionaries, each representing a view with its name and definition.
+        Overrides the base implementation to query Snowflake's database-specific
+        `information_schema`.
         """
-        if not self.cursor:
+        if not self.cursor or not self.dbname:
             raise ConnectorError("Must connect to the DB first.")
 
         query = f"""
@@ -131,36 +146,37 @@ class SnowflakeConnector(SqlBaseConnector):
         """
         self.cursor.execute(query, (self.schema_name,))
         views = [
-            {"name": view[0], "definition": view[1]}
-            for view in self.cursor.fetchall()
+            {"name": row[0], "definition": row[1]}
+            for row in self.cursor.fetchall()
         ]
         logger.info(f"Found {len(views)} views.")
         return views
 
     def get_foreign_keys(self) -> List[Dict[str, str]]:
         """
-        Retrieves all foreign key relationships using a Snowflake-specific command.
+        Retrieves all foreign key relationships using `SHOW IMPORTED KEYS`.
 
-        This method overrides the base `information_schema` implementation because
-        Snowflake's `SHOW IMPORTED KEYS` command is a more reliable way to get
-        foreign key information.
+        Overrides the base `information_schema` implementation because this
+        Snowflake-specific command is more reliable.
         """
-        if not self.cursor:
+        if not self.cursor or not self.dbname or not self.schema_name:
             raise ConnectorError("Must connect to the DB first.")
 
         logger.info("Fetching foreign key relationships from Snowflake...")
         self.cursor.execute(f'USE SCHEMA "{self.dbname}"."{self.schema_name}"')
         self.cursor.execute("SHOW IMPORTED KEYS;")
 
-        foreign_keys = []
-        for fk in self.cursor.fetchall():
-            foreign_keys.append(
-                {
-                    "from_table": fk[6],
-                    "from_column": fk[7],
-                    "to_table": fk[2],
-                    "to_column": fk[3],
-                }
-            )
+        # Row format from SHOW IMPORTED KEYS:
+        # created_on, pk_database_name, pk_schema_name, pk_table_name, pk_column_name,
+        # fk_database_name, fk_schema_name, fk_table_name, fk_column_name, ...
+        foreign_keys = [
+            {
+                "source_table": row[7],
+                "source_column": row[8],
+                "target_table": row[3],
+                "target_column": row[4],
+            }
+            for row in self.cursor.fetchall()
+        ]
         logger.info(f"Found {len(foreign_keys)} foreign key relationships.")
         return foreign_keys

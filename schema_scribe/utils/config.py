@@ -1,9 +1,10 @@
 """
-This module manages the application's configuration settings, primarily by loading
-them from environment variables defined in a `.env` file.
+This module manages the application's configuration settings by loading them
+from environment variables.
 
-It uses the `pydantic-settings` library (implicitly via `python-dotenv` in this setup)
-and a singleton pattern to provide a globally accessible, consistent configuration object.
+It uses `python-dotenv` to automatically load variables from a `.env` file
+(ideal for local development) and provides a singleton `settings` object for
+globally consistent access to these values.
 """
 
 import os
@@ -19,9 +20,8 @@ class Settings:
     """
     A centralized class for managing application settings from environment variables.
 
-    This class acts as a single source of truth for all configuration variables.
-    Attributes are defined on this class and are automatically populated from
-    environment variables with the same name (case-insensitive).
+    This class provides a single, typed interface for all configuration variables
+    that are loaded from the environment. It acts as a single source of truth.
 
     Usage:
         from schema_scribe.utils.config import settings
@@ -32,16 +32,9 @@ class Settings:
         """
         Initializes the Settings object by loading values from the environment.
 
-        To add a new setting, declare it as a class attribute with a type hint.
-        The value will be automatically loaded from the corresponding environment
-        variable. For example, to add a setting for a new service, you would add
-        the following line to this class:
-
-        `self.new_service_api_key: str | None = os.getenv("NEW_SERVICE_API_KEY")`
-
-        Then, you can access it anywhere in the application via:
-        `from schema_scribe.utils.config import settings`
-        `key = settings.new_service_api_key`
+        To add a new setting, declare it as a class attribute and load it from
+        the environment using `os.getenv`. For example:
+        `self.new_key: str | None = os.getenv("NEW_KEY")`
         """
         # Load the OpenAI API key from the `OPENAI_API_KEY` environment variable.
         self.openai_api_key: str | None = os.getenv("OPENAI_API_KEY")
@@ -52,5 +45,5 @@ class Settings:
 
 # Create a single, globally accessible instance of the Settings class.
 # This singleton pattern ensures that settings are loaded only once and are
-# consistently available throughout the application.
+# consistently available throughout the application, preventing discrepancies.
 settings = Settings()

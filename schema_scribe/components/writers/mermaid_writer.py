@@ -1,6 +1,7 @@
 """
-This module provides a specialized writer for saving a Mermaid.js graph
-string to a Markdown file, formatted for rendering.
+This module provides `MermaidWriter`, a specialized `BaseWriter` implementation
+used by the `lineage` workflow to save a Mermaid.js graph string to a
+Markdown file.
 """
 
 from typing import Dict, Any
@@ -14,21 +15,24 @@ logger = get_logger(__name__)
 
 class MermaidWriter(BaseWriter):
     """
-    Handles writing a single Mermaid graph string to a Markdown file.
+    Implements `BaseWriter` to write a Mermaid graph to a Markdown file.
 
-    This writer is designed to take a complete Mermaid graph definition
-    and save it within a Markdown code block, ready for rendering in
-    supported platforms like GitHub or GitLab.
+    This writer is designed for a single purpose: to take a complete Mermaid
+    graph definition from the catalog data and save it within a Markdown
+    code block, ready for rendering in supported platforms like GitHub.
     """
 
     def write(self, catalog_data: Dict[str, Any], **kwargs):
         """
         Writes the Mermaid graph from catalog_data to a Markdown file.
 
+        It looks for the `"mermaid_graph"` key in the `catalog_data` dictionary.
+        If the key is not found, it writes a placeholder graph.
+
         Args:
             catalog_data: A dictionary expected to contain the key
                           `"mermaid_graph"` with the full Mermaid string.
-            **kwargs: Expects the `output_filename` key, which specifies
+            **kwargs: Must contain the `output_filename` key, which specifies
                       the path to the output `.md` file.
 
         Raises:
@@ -37,17 +41,14 @@ class MermaidWriter(BaseWriter):
         """
         output_filename = kwargs.get("output_filename")
         if not output_filename:
-            logger.error(
-                "MermaidWriter 'write' method missing 'output_filename'."
-            )
             raise ConfigError(
-                "Missing required kwarg 'output_filename' for MermaidWriter."
+                "MermaidWriter requires 'output_filename' in kwargs."
             )
 
         mermaid_graph = catalog_data.get("mermaid_graph")
         if not mermaid_graph:
             logger.warning(
-                "No 'mermaid_graph' key found in catalog data. Writing empty file."
+                "No 'mermaid_graph' key found in catalog data. Writing an empty graph."
             )
             mermaid_graph = "graph TD;\n  A[No lineage data found]"
 

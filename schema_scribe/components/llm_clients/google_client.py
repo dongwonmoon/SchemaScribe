@@ -1,6 +1,6 @@
 """
-This module provides a concrete implementation of the `BaseLLMClient` for
-Google's Generative AI (Gemini) API.
+This module provides `GoogleGenAIClient`, a concrete implementation of the
+`BaseLLMClient` interface for Google's Generative AI (Gemini) API.
 """
 
 import google.generativeai as genai
@@ -16,8 +16,13 @@ class GoogleGenAIClient(BaseLLMClient):
     """
     A client for interacting with Google's Generative AI (Gemini) models.
 
-    This class handles the configuration and API calls to the Google Gemini API,
-    using the `google-generativeai` library.
+    This class implements the `BaseLLMClient` interface. Its primary
+    responsibilities are to:
+    1.  Fetch the `GOOGLE_API_KEY` from the application settings (which are
+        loaded from environment variables).
+    2.  Configure the `google-generativeai` library with the API key.
+    3.  Wrap the `generate_content` API call to provide a consistent
+        `get_description` method.
     """
 
     def __init__(self, model: str = "gemini-pro"):
@@ -25,7 +30,7 @@ class GoogleGenAIClient(BaseLLMClient):
         Initializes the Google GenAI (Gemini) client.
 
         This method configures the `google.generativeai` library with the API key
-        from the application settings and instantiates the specified model.
+        and instantiates the specified generative model.
 
         Args:
             model: The name of the Gemini model to use, as specified in the
@@ -37,9 +42,9 @@ class GoogleGenAIClient(BaseLLMClient):
         """
         api_key = settings.google_api_key
         if not api_key:
-            logger.error("GOOGLE_API_KEY environment variable not set.")
             raise ConfigError(
-                "GOOGLE_API_KEY must be set in the .env file to use GoogleGenAIClient."
+                "GOOGLE_API_KEY must be set in your environment (e.g., in a .env file) "
+                "to use GoogleGenAIClient."
             )
 
         try:
@@ -51,17 +56,19 @@ class GoogleGenAIClient(BaseLLMClient):
             logger.error(
                 f"Failed to initialize Google GenAI client: {e}", exc_info=True
             )
-            raise ConfigError(f"Failed to initialize Google GenAI client: {e}")
+            raise ConfigError(
+                f"Failed to initialize Google GenAI client: {e}"
+            ) from e
 
     def get_description(self, prompt: str, max_tokens: int) -> str:
         """
         Generates a description using the configured Google Gemini model.
 
-        Note on `max_tokens`:
-        The `google-generativeai` library does not use a direct `max_tokens`
-        parameter in the `generate_content` method. Instead, output length is
-        controlled via a `generation_config` object. For simplicity, this
-        implementation does not use it, and the `max_tokens` argument is ignored.
+        Note on `max_tokens`: The `google-generativeai` library does not use a
+        direct `max_tokens` parameter in its `generate_content` method. Output
+        length is controlled via a `generation_config` object. For simplicity,
+        this implementation does not use it, and the `max_tokens` argument is
+        therefore ignored.
 
         Args:
             prompt: The prompt to send to the language model.
@@ -77,9 +84,7 @@ class GoogleGenAIClient(BaseLLMClient):
             logger.info(
                 f"Sending prompt to Google GenAI '{self.model.model_name}' model..."
             )
-
             response = self.model.generate_content(prompt)
-
             description = response.text.strip()
             logger.info("Response received from Google GenAI.")
             return description

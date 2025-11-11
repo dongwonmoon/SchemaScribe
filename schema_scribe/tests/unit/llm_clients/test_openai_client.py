@@ -31,7 +31,8 @@ def test_openai_client_missing_api_key(mocker):
     )
     mock_settings.openai_api_key = None
     with pytest.raises(
-        ConfigError, match="OPENAI_API_KEY environment variable not set"
+        ConfigError,
+        match="OPENAI_API_KEY must be set in your environment",
     ):
         OpenAIClient()
 

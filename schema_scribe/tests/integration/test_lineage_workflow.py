@@ -54,10 +54,10 @@ def test_lineage_workflow_e2e(
     mock_db = MagicMock()
     mock_db.get_foreign_keys.return_value = [
         {
-            "from_table": "stg_orders",  # This is also a dbt model
-            "from_column": "order_id",
-            "to_table": "raw_orders",  # This is just a DB table
-            "to_column": "id",
+            "source_table": "stg_orders",  # This is also a dbt model
+            "source_column": "order_id",
+            "target_table": "raw_orders",  # This is just a DB table
+            "target_column": "id",
         }
     ]
     mock_get_connector.return_value = mock_db

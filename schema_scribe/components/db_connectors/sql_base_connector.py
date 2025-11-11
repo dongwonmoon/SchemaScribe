@@ -1,10 +1,11 @@
 """
-This module defines a base class for SQL connectors using an `information_schema`.
+This module defines `SqlBaseConnector`, a reusable base class for connectors
+that use a standard `information_schema`.
 
 It abstracts the common logic for fetching metadata (tables, columns, views,
-foreign keys) that is shared across many standard SQL databases (e.g., PostgreSQL,
-MySQL, MariaDB). Subclasses can inherit from `SqlBaseConnector` to reuse this
-logic, only needing to provide a concrete `connect` implementation.
+foreign keys) shared across many SQL databases. This allows developers to
+support a new SQL database with minimal effort, often only needing to implement
+the `connect` method.
 """
 
 from abc import abstractmethod
@@ -21,17 +22,19 @@ class SqlBaseConnector(BaseConnector):
     """
     An abstract base class for connectors that rely on an `information_schema`.
 
-    This class provides default implementations for `get_tables`, `get_columns`,
-    `get_views`, and `get_foreign_keys` based on standard `information_schema`
-    queries.
+    This class inherits from `BaseConnector` and provides default, ANSI SQL
+    implementations for `get_tables`, `get_columns`, `get_views`, and
+    `get_foreign_keys`.
 
     Subclasses are required to implement the `connect` method. They can also
     override any of the metadata methods if their SQL dialect differs from the
-    standard ANSI SQL implementation provided here.
+    standard implementation provided here.
     """
 
     def __init__(self):
-        """Initializes the connector, setting the connection state to `None`."""
+        """
+        Initializes the connector's state, which will be populated by `connect`.
+        """
         self.connection = None
         self.cursor = None
         self.dbname: str | None = None
@@ -42,10 +45,16 @@ class SqlBaseConnector(BaseConnector):
         """
         Abstract method for establishing a database connection.
 
-        Subclasses must implement this method to handle the specifics of
-        connecting to their target database (e.g., using `psycopg2` or `mysql-connector`).
-        This method should set `self.connection`, `self.cursor`, `self.dbname`,
-        and `self.schema_name`.
+        Subclasses MUST implement this method to handle the specifics of
+        connecting to their target database (e.g., using `psycopg2` or
+        `mysql-connector`).
+
+        A valid implementation of this method MUST set the following instance
+        attributes for the other base methods to function correctly:
+        - `self.connection`: The active database connection object.
+        - `self.cursor`: The database cursor for executing queries.
+        - `self.dbname`: The name of the database.
+        - `self.schema_name`: The name of the schema to be scanned.
         """
         pass
 
@@ -60,52 +69,81 @@ class SqlBaseConnector(BaseConnector):
             ConnectorError: If the database connection is not established.
         """
         if not self.cursor or not self.schema_name:
-            raise ConnectorError("Must connect to the DB first")
+            raise ConnectorError(
+                "Connection not established. The 'connect' method must be called first."
+            )
 
         logger.info(f"Fetching tables from schema: '{self.schema_name}'")
-
         query = """
             SELECT table_name
             FROM information_schema.tables
             WHERE table_schema = %s AND table_type = 'BASE TABLE';
         """
-
         self.cursor.execute(query, (self.schema_name,))
-        tables = [table[0] for table in self.cursor.fetchall()]
+        tables = [row[0] for row in self.cursor.fetchall()]
         logger.info(f"Found {len(tables)} tables.")
         return tables
 
-    def get_columns(self, table_name: str) -> List[Dict[str, str]]:
+    def get_columns(self, table_name: str) -> List[Dict[str, Any]]:
         """
-        Retrieves column information for a given table from the information_schema.
+        Retrieves column metadata for a table from the information_schema.
+
+        This implementation fetches column name, data type, nullability, and
+        primary key status.
 
         Args:
             table_name: The name of the table to inspect.
 
         Returns:
-            A list of dictionaries, each representing a column with its name and type.
+            A list of dictionaries, each representing a column, conforming to
+            the `BaseConnector` interface contract.
 
         Raises:
             ConnectorError: If the database connection is not established.
         """
         if not self.cursor or not self.schema_name:
             raise ConnectorError(
-                "Must connect to the DB first and set schema_name."
+                "Connection not established. The 'connect' method must be called first."
             )
 
         logger.info(
             f"Fetching columns for table: '{self.schema_name}.{table_name}'"
         )
-
+        # This query joins with table_constraints to identify primary keys.
         query = """
-            SELECT column_name, data_type
-            FROM information_schema.columns
-            WHERE table_schema = %s AND table_name = %s;
+            SELECT
+                c.column_name,
+                c.data_type,
+                c.is_nullable,
+                CASE
+                    WHEN tc.constraint_type = 'PRIMARY KEY' THEN TRUE
+                    ELSE FALSE
+                END AS is_pk
+            FROM
+                information_schema.columns c
+            LEFT JOIN
+                information_schema.key_column_usage kcu
+                ON c.table_schema = kcu.table_schema
+                AND c.table_name = kcu.table_name
+                AND c.column_name = kcu.column_name
+            LEFT JOIN
+                information_schema.table_constraints tc
+                ON kcu.constraint_name = tc.constraint_name
+                AND kcu.table_schema = tc.table_schema
+                AND tc.constraint_type = 'PRIMARY KEY'
+            WHERE
+                c.table_schema = %s AND c.table_name = %s;
         """
-
         self.cursor.execute(query, (self.schema_name, table_name))
         columns = [
-            {"name": col[0], "type": col[1]} for col in self.cursor.fetchall()
+            {
+                "name": row[0],
+                "type": row[1],
+                "description": "",  # Not available in information_schema
+                "is_nullable": row[2] == "YES",
+                "is_pk": row[3] or False,
+            }
+            for row in self.cursor.fetchall()
         ]
         logger.info(f"Found {len(columns)} columns in table '{table_name}'.")
         return columns
@@ -115,28 +153,27 @@ class SqlBaseConnector(BaseConnector):
         Retrieves a list of views and their definitions from the information_schema.
 
         Returns:
-            A list of dictionaries, each representing a view with its name and definition.
+            A list of dictionaries, each representing a view with its name and
+            SQL definition.
 
         Raises:
             ConnectorError: If the database connection is not established.
         """
         if not self.cursor or not self.schema_name:
             raise ConnectorError(
-                "Must connect to the DB first and set schema_name."
+                "Connection not established. The 'connect' method must be called first."
             )
 
         logger.info(f"Fetching views from schema: '{self.schema_name}'")
-
         query = """
             SELECT table_name, view_definition
             FROM information_schema.views
             WHERE table_schema = %s;
         """
-
         self.cursor.execute(query, (self.schema_name,))
         views = [
-            {"name": view[0], "definition": view[1]}
-            for view in self.cursor.fetchall()
+            {"name": row[0], "definition": row[1]}
+            for row in self.cursor.fetchall()
         ]
         logger.info(f"Found {len(views)} views.")
         return views
@@ -146,50 +183,47 @@ class SqlBaseConnector(BaseConnector):
         Retrieves all foreign key relationships from the information_schema.
 
         Returns:
-            A list of dictionaries, each representing a foreign key relationship.
+            A list of dictionaries, each representing a foreign key, conforming
+            to the `BaseConnector` interface contract.
 
         Raises:
             ConnectorError: If the database connection is not established.
         """
         if not self.cursor or not self.schema_name:
             raise ConnectorError(
-                "Must connect to the DB first and set schema_name."
+                "Connection not established. The 'connect' method must be called first."
             )
 
-        logger.info(
-            f"Fetching foreign key relationships for schema: '{self.schema_name}'"
-        )
-
+        logger.info(f"Fetching foreign keys for schema: '{self.schema_name}'")
         query = """
-        SELECT
-            kcu.table_name AS from_table,
-            kcu.column_name AS from_column,
-            ccu.table_name AS to_table,
-            ccu.column_name AS to_column
-        FROM
-            information_schema.table_constraints AS tc
-        JOIN
-            information_schema.key_column_usage AS kcu
-            ON tc.constraint_name = kcu.constraint_name
-            AND tc.table_schema = kcu.table_schema
-        JOIN
-            information_schema.constraint_column_usage AS ccu
-            ON ccu.constraint_name = tc.constraint_name
-            AND ccu.table_schema = tc.table_schema
-        WHERE
-            tc.constraint_type = 'FOREIGN KEY'
-            AND tc.table_schema = %s;
+            SELECT
+                kcu.table_name AS source_table,
+                kcu.column_name AS source_column,
+                ccu.table_name AS target_table,
+                ccu.column_name AS target_column
+            FROM
+                information_schema.table_constraints AS tc
+            JOIN
+                information_schema.key_column_usage AS kcu
+                ON tc.constraint_name = kcu.constraint_name
+                AND tc.table_schema = kcu.table_schema
+            JOIN
+                information_schema.constraint_column_usage AS ccu
+                ON ccu.constraint_name = tc.constraint_name
+                AND ccu.table_schema = tc.table_schema
+            WHERE
+                tc.constraint_type = 'FOREIGN KEY'
+                AND tc.table_schema = %s;
         """
-
         self.cursor.execute(query, (self.schema_name,))
         foreign_keys = [
             {
-                "from_table": fk[0],
-                "from_column": fk[1],
-                "to_table": fk[2],
-                "to_column": fk[3],
+                "source_table": row[0],
+                "source_column": row[1],
+                "target_table": row[2],
+                "target_column": row[3],
             }
-            for fk in self.cursor.fetchall()
+            for row in self.cursor.fetchall()
         ]
         logger.info(f"Found {len(foreign_keys)} foreign key relationships.")
         return foreign_keys
@@ -209,15 +243,14 @@ class SqlBaseConnector(BaseConnector):
             column_name: The name of the column to profile.
 
         Returns:
-            A dictionary of statistics, e.g.,
-            `{'null_ratio': 0.1, 'distinct_count': 150, 'is_unique': False}`.
-            Returns 'N/A' for stats if profiling fails.
+            A dictionary of statistics, or 'N/A' for stats if profiling fails.
         """
         if not self.cursor or not self.schema_name:
             raise ConnectorError(
-                "Must connect to the DB first and set schema_name."
+                "Connection not established. The 'connect' method must be called first."
             )
 
+        # Use double quotes for identifiers to be ANSI SQL compliant
         query = f"""
         SELECT
             COUNT(*) AS total_count,
@@ -225,31 +258,31 @@ class SqlBaseConnector(BaseConnector):
             COUNT(DISTINCT "{column_name}") AS distinct_count
         FROM "{self.schema_name}"."{table_name}"
         """
-
         try:
             self.cursor.execute(query)
             row = self.cursor.fetchone()
+            if not row:
+                raise ConnectorError(
+                    "Column profiling query returned no results."
+                )
 
-            total_count = row[0]
-            null_count = row[1] if row[1] is not None else 0
-            distinct_count = row[2] if row[2] is not None else 0
+            total_count, null_count, distinct_count = row
+            total_count = total_count or 0
+            null_count = null_count or 0
+            distinct_count = distinct_count or 0
 
             if total_count == 0:
-                logger.info(
-                    f"  - Profile for '{table_name}.{column_name}': Table is empty."
-                )
                 return {
-                    "null_ratio": 0,
+                    "null_ratio": 0.0,
                     "distinct_count": 0,
                     "is_unique": True,
-                    "total_count": 0,
                 }
 
             null_ratio = null_count / total_count
+            # A column is unique if distinct count equals total rows, and no nulls
             is_unique = (distinct_count == total_count) and (null_count == 0)
 
             stats = {
-                "total_count": total_count,
                 "null_ratio": round(null_ratio, 2),
                 "distinct_count": distinct_count,
                 "is_unique": is_unique,
@@ -258,22 +291,20 @@ class SqlBaseConnector(BaseConnector):
                 f"  - Profile for '{table_name}.{column_name}': {stats}"
             )
             return stats
-
         except Exception as e:
-            # Log error but don't crash the whole scan
             logger.warning(
-                f"Failed to profile column '{table_name}.{column_name}': {e}",
-                exc_info=True,
+                f"Could not profile column '{table_name}.{column_name}': {e}"
             )
             return {
                 "null_ratio": "N/A",
                 "distinct_count": "N/A",
-                "is_unique": False,
-                "total_count": "N/A",
+                "is_unique": "N/A",
             }
 
     def close(self):
-        """Closes the database cursor and connection and resets state."""
+        """
+        Safely closes the database cursor and connection if they are open.
+        """
         if self.cursor:
             self.cursor.close()
             self.cursor = None

@@ -1,11 +1,13 @@
 """
-This module centralizes all prompt templates for generating content with an LLM.
+This module centralizes all prompt templates used to generate content with an LLM.
 
-Each constant is a carefully formatted f-string that provides context,
-instructions, and few-shot examples to the language model. This helps ensure
-the model's output is structured and relevant for tasks like generating column
-descriptions, model summaries, and dbt metadata.
+These prompts are the "brain" of the application's AI features. Each constant
+is a carefully formatted f-string that provides context, instructions, and often
+few-shot examples to the language model. This helps ensure the model's output is
+structured, relevant, and constrained for its specific task.
 """
+
+# Note: The `"""..."""` block AFTER each constant is the docstring for that constant.
 
 COLUMN_DESCRIPTION_PROMPT = """
 You are a Data Analyst. Your task is to write a brief, business-focused description
@@ -42,6 +44,14 @@ Placeholders:
 - `{col_name}`: The name of the column.
 - `{col_type}`: The data type of the column.
 - `{profile_context}`: A formatted string of data profiling statistics.
+
+Design Rationale:
+- **Persona**: "You are a Data Analyst" sets the context for the desired tone.
+- **Constraints**: "under 15 words" and "Just provide the description" keep the output concise and clean.
+- **Context Injection**: The `Data Profile Context` provides the LLM with statistical information,
+  allowing it to make more intelligent and accurate descriptions.
+- **Few-Shot Examples**: The examples guide the model on how to use the context (e.g., how to
+  describe a unique ID or a status column).
 """
 
 DBT_MODEL_PROMPT = """
@@ -59,6 +69,12 @@ A prompt to generate a high-level, business-focused summary for a dbt model.
 Placeholders:
 - `{model_name}`: The name of the dbt model.
 - `{raw_sql}`: The raw SQL code that defines the model.
+
+Design Rationale:
+- **Persona**: "You are a dbt expert" primes the model to understand dbt-specific concepts.
+- **Focus**: "from a business perspective" steers the model away from technical jargon and
+  towards a functional description.
+- **Brevity**: "1-2 sentences" ensures the summary is concise.
 """
 
 DBT_MODEL_LINEAGE_PROMPT = """
@@ -96,13 +112,18 @@ graph TD
 """
 A prompt to generate a Mermaid.js lineage chart for a dbt model.
 
-This asks the LLM to act as a data architect, analyze the model's dependencies
-(`ref` and `source` functions), and generate a simple, top-down Mermaid graph
-showing only its direct parents.
-
 Placeholders:
 - `{model_name}`: The name of the dbt model.
 - `{raw_sql}`: The raw SQL code that defines the model.
+
+Design Rationale:
+- **Persona**: "data architect specializing in dbt" sets a specific, expert context.
+- **Output Structuring**: "Generate a Mermaid.js `graph TD` flowchart code" asks for a specific,
+  machine-readable output format.
+- **Scoping Instructions**: The negative constraints ("Do not show downstream children") are crucial
+  for preventing the model from generating an overly complex or incorrect graph.
+- **Few-Shot Example**: The example provides a clear, concrete demonstration of the expected input-to-output
+  transformation, which is highly effective for structured data generation.
 """
 
 VIEW_SUMMARY_PROMPT = """
@@ -120,6 +141,10 @@ A prompt to generate a business-level summary for a database view.
 Placeholders:
 - `{view_name}`: The name of the database view.
 - `{view_definition}`: The SQL `CREATE VIEW` statement.
+
+Design Rationale:
+- This prompt is very similar to `DBT_MODEL_PROMPT` but is tailored for generic database views
+  instead of dbt models. The core idea is the same: summarize the business purpose from the SQL code.
 """
 
 TABLE_SUMMARY_PROMPT = """
@@ -138,6 +163,11 @@ A prompt to generate a business-level summary for a database table.
 Placeholders:
 - `{table_name}`: The name of the database table.
 - `{column_list_str}`: A comma-separated string of column names.
+
+Design Rationale:
+- Unlike views or dbt models, a base table has no SQL code to analyze. Instead, this prompt
+  provides the list of column names as context, which the LLM can use to infer the table's purpose.
+- The one-shot example helps guide the model's reasoning process.
 """
 
 DBT_COLUMN_PROMPT = """
@@ -177,15 +207,18 @@ tests:
 """
 A prompt to generate a complete YAML metadata block for a dbt column.
 
-This asks the LLM to act as a senior data governance expert and generate a YAML
-snippet containing a description, PII metadata, tags, and appropriate tests.
-It is designed to produce output that can be directly used in a dbt `schema.yml`.
-
 Placeholders:
 - `{col_name}`: The name of the column.
 - `{col_type}`_ The data type of the column.
 - `{model_name}`: The name of the dbt model.
 - `{raw_sql}`: The raw SQL code of the model for context.
+
+Design Rationale:
+- **Persona**: "senior data governance expert" primes the model to think about PII, tests, and tags.
+- **Output Structuring**: "generate a YAML snippet" and "Output ONLY the YAML snippet" are strong
+  instructions to get machine-readable output that can be parsed directly.
+- **Few-Shot Example**: The example shows the exact YAML structure required, which is critical for
+  getting reliable, structured output from the LLM.
 """
 
 DBT_DRIFT_CHECK_PROMPT = """
@@ -210,13 +243,16 @@ Response (MATCH or DRIFT):
 """
 A prompt to check for documentation drift against live data.
 
-This prompt asks the LLM to act as a data governance auditor. It compares
-the existing documentation for a column against fresh data profile statistics
-from the live database to see if the description is still accurate.
-
 Placeholders:
 - `{node_name}`: The name of the model or table.
 - `{column_name}`: The name of the column.
 - `{existing_description}`: The documentation currently in schema.yml.
 - `{profile_context}`: The fresh data profile stats from the database.
+
+Design Rationale:
+- **Persona**: "Data Governance Auditor" sets the context for a critical comparison task.
+- **Constrained Output**: "Answer with a single word: 'MATCH' or 'DRIFT'" makes the output
+  extremely easy and reliable to parse programmatically.
+- **Clear Rules**: The bullet points provide explicit rules for the model to follow when making
+  its judgment, improving accuracy and consistency.
 """

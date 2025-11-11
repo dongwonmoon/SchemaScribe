@@ -1,6 +1,7 @@
 """
-This module provides a concrete implementation of the `BaseLLMClient` for
-the Ollama API, allowing interaction with locally-run language models.
+This module provides `OllamaClient`, a concrete implementation of the
+`BaseLLMClient` interface for the Ollama API, allowing interaction with
+locally-run language models.
 """
 
 import ollama
@@ -19,7 +20,10 @@ class OllamaClient(BaseLLMClient):
     A client for interacting with a local Ollama API.
 
     This class implements the `BaseLLMClient` interface to provide a standardized
-    way to generate text using models hosted via Ollama.
+    way to generate text using models hosted via Ollama. Its responsibilities are:
+    1.  Connect to a local Ollama instance at a specified host URL.
+    2.  Pull the specified model on initialization to ensure it is available.
+    3.  Wrap the `chat` API call to provide a consistent `get_description` method.
     """
 
     def __init__(
@@ -27,6 +31,9 @@ class OllamaClient(BaseLLMClient):
     ):
         """
         Initializes the OllamaClient.
+
+        This method creates a client for the specified Ollama host and performs
+        a `pull` operation to ensure the requested model is available locally.
 
         Args:
             model: The name of the Ollama model to use (e.g., "llama3").
@@ -41,7 +48,7 @@ class OllamaClient(BaseLLMClient):
             )
             self.client = ollama.Client(host=host)
             self.model = model
-            logger.info(f"Pulling model '{model}'...")
+            logger.info(f"Pulling model '{model}' to ensure it is available...")
             self.client.pull(model)
             logger.info("Ollama client initialized successfully.")
         except Exception as e:
@@ -56,7 +63,8 @@ class OllamaClient(BaseLLMClient):
 
         Args:
             prompt: The prompt to send to the language model.
-            max_tokens: The maximum number of tokens to generate in the response.
+            max_tokens: The maximum number of tokens to generate. This is passed
+                        to the Ollama API via the `num_predict` option.
 
         Returns:
             The AI-generated description as a string.
@@ -65,8 +73,7 @@ class OllamaClient(BaseLLMClient):
             LLMClientError: If the API call to Ollama fails.
         """
         try:
-            logger.info(f"Sending prompt to Ollama model '{self.model}'.")
-            logger.debug(f"Prompt: {prompt}")
+            logger.info(f"Sending prompt to Ollama model '{self.model}'...")
             response = self.client.chat(
                 model=self.model,
                 messages=[{"role": "system", "content": prompt}],
@@ -74,7 +81,6 @@ class OllamaClient(BaseLLMClient):
             )
             description = response["message"]["content"].strip()
             logger.info("Successfully received description from Ollama.")
-            logger.debug(f"Generated description: {description}")
             return description
         except Exception as e:
             logger.error(

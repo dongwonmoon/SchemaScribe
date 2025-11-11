@@ -1,9 +1,10 @@
 """
-This module provides the core engine for generating data catalogs.
+This module provides the `CatalogGenerator`, the core engine for transforming
+raw database schema information into an enriched, human-readable data catalog.
 
-The `CatalogGenerator` class uses a database connector to fetch schema metadata
-(tables, columns, views) and an LLM client to generate descriptive content,
-creating a comprehensive, enriched data catalog.
+It uses a database connector to fetch metadata and an LLM client to generate
+descriptive content, effectively turning technical details into valuable
+business-level documentation.
 """
 
 from typing import List, Dict, Any
@@ -22,11 +23,16 @@ logger = get_logger(__name__)
 
 class CatalogGenerator:
     """
-    Orchestrates the generation of a data catalog from a database schema.
+    Orchestrates the generation of a data catalog from a live database schema.
 
-    This class connects to a database via a `BaseConnector`, inspects its tables,
-    columns, and views, profiles the data, and then uses a `BaseLLMClient` to
-    generate business-friendly summaries and descriptions for these assets.
+    This class is the heart of the `db` workflow. It manages a multi-step
+    process:
+    1.  Connects to a database via a `BaseConnector`.
+    2.  Inspects its tables, columns, and views.
+    3.  Profiles the data in each column to gather statistics.
+    4.  Uses a `BaseLLMClient` to generate business-friendly summaries and
+        descriptions for these assets by creating tailored prompts.
+    5.  Assembles the final, enriched catalog dictionary.
     """
 
     def __init__(self, db_connector: BaseConnector, llm_client: BaseLLMClient):
@@ -47,6 +53,13 @@ class CatalogGenerator:
         This creates a concise, readable summary of a column's data profile
         to give the LLM better context for generating a description.
 
+        Example Output:
+        ```
+        - Null Ratio: 0.0 (0.0 = no nulls)
+        - Is Unique: True
+        - Distinct Count: 150
+        ```
+
         Args:
             profile_stats: A dictionary of statistics from `get_column_profile`.
 
@@ -64,29 +77,35 @@ class CatalogGenerator:
         self, db_profile_name: str
     ) -> Dict[str, List[Dict[str, Any]]]:
         """
-        Generates a complete data catalog for the connected database.
+        Generates a complete, enriched data catalog for the connected database.
 
-        This method fetches all tables, views, and foreign keys, then iterates
-        through them to generate AI-powered summaries and descriptions.
+        This method executes the main logic in three stages:
+        1.  **Process Tables**: Fetches all tables, generates an AI summary for
+            each, and then iterates through their columns. For each column, it
+            gathers profile stats and generates an AI description.
+        2.  **Process Views**: Fetches all database views and generates an AI
+            summary for each based on its name and SQL definition.
+        3.  **Process Foreign Keys**: Fetches all foreign key relationships to
+            provide lineage information.
 
         Args:
             db_profile_name: The name of the database profile being scanned,
                              used for logging and context.
 
         Returns:
-            A dictionary representing the complete, enriched data catalog.
+            A dictionary representing the complete data catalog.
             The structure is as follows:
             ```
             {
                 "tables": [
                     {
                         "name": "table_name",
-                        "ai_summary": "AI-generated summary of the table.",
+                        "ai_summary": "AI-generated summary...",
                         "columns": [
                             {
                                 "name": "column_name",
                                 "type": "data_type",
-                                "description": "AI-generated column description.",
+                                "description": "AI-generated description...",
                                 "profile_stats": { ... }
                             },
                             ...
@@ -94,14 +113,7 @@ class CatalogGenerator:
                     },
                     ...
                 ],
-                "views": [
-                    {
-                        "name": "view_name",
-                        "definition": "CREATE VIEW ...",
-                        "ai_summary": "AI-generated summary of the view."
-                    },
-                    ...
-                ],
+                "views": [ { ... } ],
                 "foreign_keys": [ { ... } ]
             }
             ```

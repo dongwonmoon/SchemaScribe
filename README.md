@@ -21,16 +21,29 @@ Get your first AI-generated catalog in less than a minute.
 
 ### 1. Install
 
-Clone the repo and install dependencies.
+Install the `schema-scribe` package from PyPI:
+
+```bash
+pip install schema-scribe
+```
+
+For specific database connectors or the web server, install optional dependencies:
+
+```bash
+# For PostgreSQL and Snowflake connectors
+pip install "schema-scribe[postgres, snowflake]"
+
+# For the web server
+pip install "schema-scribe[server]"
+```
+
+Alternatively, to install from source for development:
 
 ```bash
 git clone https://github.com/dongwonmoon/SchemaScribe.git
 cd SchemaScribe
-pip install -r requirements.txt
+pip install -e .[all] # Installs all optional dependencies in editable mode
 ```
-
-*(Note: For specific databases, install optional dependencies: `pip install -e " .[postgres, snowflake]"`)*
-*(Note: To use the web server, also install server dependencies: `pip install "schema-scribe[server]"`)*
 
 ### 2. Initialize
 
@@ -57,7 +70,8 @@ schema-scribe dbt --project-dir /path/to/your/dbt/project --update
 schema-scribe dbt --project-dir /path/to/your/dbt/project --db your_db_profile --drift
 
 # Generate a global, end-to-end lineage graph
-schema-scribe lineage --project-dir /path/to/your/dbt/project --db your_db_profile --output your_mermaid_profile
+schema-scribe lineage --project-dir /path/to/your/dbt/project --db your_db_profile --output your_mermaid_profile # 'your_mermaid_profile' must be of type 'mermaid'
+
 ```
 
 **For a database:**

@@ -1,8 +1,10 @@
 """
-This module defines the workflow for the 'db' command.
+This module defines the `DbWorkflow` class, which encapsulates the end-to-end
+logic for the `schema-scribe db` command.
 
-It encapsulates the logic for connecting to a database, generating a catalog,
-and writing the output, orchestrated by the `DbWorkflow` class.
+The workflow is responsible for orchestrating the process of connecting to a
+database, inspecting its schema, generating a data catalog (with AI-powered
+descriptions), and writing the result to a specified output format.
 """
 
 from typing import Optional
@@ -20,9 +22,12 @@ class DbWorkflow:
     """
     Manages the end-to-end workflow for the `schema-scribe db` command.
 
-    This class is responsible for loading configuration, initializing components
-    (database connector, LLM client, writer), orchestrating the catalog
-    generation process, and handling the final output.
+    This class acts as the central orchestrator for database scanning tasks.
+    It is instantiated with CLI parameters, loads the necessary configuration,
+    and uses factory functions to dynamically initialize the required components
+    (database connector, LLM client, and writer).
+
+    The lifecycle of the workflow is managed by the `run` method.
     """
 
     def __init__(
@@ -33,13 +38,16 @@ class DbWorkflow:
         output_profile: Optional[str],
     ):
         """
-        Initializes the DbWorkflow with parameters from the CLI.
+        Initializes the DbWorkflow with configuration from the CLI.
+
+        This constructor stores the profile names and loads the main `config.yaml`
+        file, making the configuration accessible for the `run` method.
 
         Args:
-            config_path: The path to the configuration file.
-            db_profile: The name of the database profile to use.
-            llm_profile: The name of the LLM profile to use.
-            output_profile: The name of the output profile to use.
+            config_path: The path to the configuration file (e.g., 'config.yaml').
+            db_profile: The name of the database profile to use from the config.
+            llm_profile: The name of the LLM profile to use from the config.
+            output_profile: The name of the output profile to use from the config.
         """
         self.config_path = config_path
         self.db_profile_name = db_profile
@@ -49,18 +57,20 @@ class DbWorkflow:
 
     def run(self):
         """
-        Executes the database scanning and documentation workflow.
+        Executes the main database scanning and documentation workflow.
 
         This method orchestrates the following steps:
-        1. Determines the correct database and LLM profiles to use.
-        2. Initializes the database connector and LLM client via the factory.
-        3. Instantiates the `CatalogGenerator` and runs it to produce the data catalog.
-        4. Initializes and uses a writer to save the catalog if an output
-           profile is specified.
-        5. Ensures the database connection is closed after the operation.
+        1.  Determines the correct database and LLM profiles to use, prioritizing
+            CLI arguments over defaults in the config file.
+        2.  Initializes the database connector and LLM client using the factory.
+        3.  Instantiates the `CatalogGenerator` and runs it to produce the
+            structured data catalog.
+        4.  Initializes a writer and uses it to save the catalog if an output
+            profile is specified.
+        5.  Ensures the database connection is always closed, even if errors occur,
+            by using a `finally` block.
         """
-        # 1. Determine which database and LLM profiles to use.
-        # Priority is given to CLI arguments, falling back to defaults in the config file.
+        # Determine which database and LLM profiles to use.
         db_profile_name = self.db_profile_name or self.config.get(
             "default", {}
         ).get("db")
@@ -74,28 +84,27 @@ class DbWorkflow:
             )
             raise typer.Exit(code=1)
 
-        # 2. Instantiate the database connector and LLM client.
+        # Instantiate the database connector and LLM client.
         db_params = self.config["db_connections"][db_profile_name]
         db_type = db_params.pop("type")
         db_connector = get_db_connector(db_type, db_params)
 
         llm_client = init_llm(self.config, llm_profile_name)
 
-        # 3. Generate the data catalog.
-        logger.info("Generating data catalog for the database...")
-        catalog = CatalogGenerator(db_connector, llm_client).generate_catalog(
-            db_profile_name
-        )
-
-        # 4. Write the catalog to the specified output, if provided.
-        if not self.output_profile_name:
-            logger.info(
-                "Catalog generated. No --output profile specified, so not writing to a file."
-            )
-            db_connector.close()
-            return
-
         try:
+            # Generate the data catalog.
+            logger.info("Generating data catalog for the database...")
+            catalog = CatalogGenerator(
+                db_connector, llm_client
+            ).generate_catalog(db_profile_name)
+
+            # Write the catalog to the specified output, if provided.
+            if not self.output_profile_name:
+                logger.info(
+                    "Catalog generated. No --output profile specified, so not writing to a file."
+                )
+                return
+
             # Initialize the writer based on the output profile.
             writer_params = self.config["output_profiles"][
                 self.output_profile_name
@@ -119,5 +128,5 @@ class DbWorkflow:
             )
             raise typer.Exit(code=1)
         finally:
-            # 5. Ensure the database connection is closed.
+            # Ensure the database connection is always closed.
             db_connector.close()

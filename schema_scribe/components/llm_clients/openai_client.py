@@ -1,6 +1,6 @@
 """
-This module provides a concrete implementation of the `BaseLLMClient` for
-the OpenAI API.
+This module provides `OpenAIClient`, a concrete implementation of the
+`BaseLLMClient` interface for the OpenAI API.
 """
 
 from openai import OpenAI
@@ -17,8 +17,13 @@ class OpenAIClient(BaseLLMClient):
     """
     A client for interacting with the OpenAI API.
 
-    This class implements the `BaseLLMClient` interface to provide a standardized
-    way to generate text using models from OpenAI.
+    This class implements the `BaseLLMClient` interface. Its primary
+    responsibilities are to:
+    1.  Fetch the `OPENAI_API_KEY` from the application settings (which are
+        loaded from environment variables).
+    2.  Initialize the `openai` library's client.
+    3.  Wrap the `chat.completions.create` API call to provide a consistent
+        `get_description` method.
     """
 
     def __init__(self, model: str = "gpt-3.5-turbo"):
@@ -26,21 +31,21 @@ class OpenAIClient(BaseLLMClient):
         Initializes the OpenAIClient.
 
         Args:
-            model: The name of the OpenAI model to use (e.g., "gpt-3.5-turbo").
+            model: The name of the OpenAI model to use (e.g., "gpt-3.5-turbo"),
+                   as specified in the `config.yaml` file.
 
         Raises:
             ConfigError: If the `OPENAI_API_KEY` environment variable is not set.
         """
-        # Retrieve the API key from the application settings
         api_key = settings.openai_api_key
         if not api_key:
-            logger.error("OPENAI_API_KEY environment variable not set.")
-            raise ConfigError("OPENAI_API_KEY environment variable not set.")
+            raise ConfigError(
+                "OPENAI_API_KEY must be set in your environment (e.g., in a .env file) "
+                "to use OpenAIClient."
+            )
 
         logger.info(f"Initializing OpenAI client with model: {model}")
-        # Instantiate the OpenAI client with the API key
         self.client = OpenAI(api_key=api_key)
-        # Store the model name for later use
         self.model = model
         logger.info("OpenAI client initialized successfully.")
 
@@ -59,20 +64,18 @@ class OpenAIClient(BaseLLMClient):
             LLMClientError: If the API call to OpenAI fails.
         """
         try:
-            logger.info(f"Sending prompt to OpenAI model '{self.model}'.")
-            # Use the chat completions endpoint to generate a response
+            logger.info(f"Sending prompt to OpenAI model '{self.model}'...")
             response = self.client.chat.completions.create(
                 model=self.model,
                 messages=[{"role": "system", "content": prompt}],
                 max_tokens=max_tokens,
             )
-            # Extract the content of the message from the first choice
             description = response.choices[0].message.content.strip()
             logger.info("Successfully received description from OpenAI.")
             return description
         except Exception as e:
             logger.error(
-                f"Failed to generate AI description: {e}", exc_info=True
+                f"Failed to generate AI description with OpenAI: {e}",
+                exc_info=True,
             )
-            # Return a fallback message if the API call fails
             raise LLMClientError(f"OpenAI API call failed: {e}") from e

@@ -1,9 +1,9 @@
 """
-This module provides a writer for generating a data catalog in Markdown format.
+This module provides `MarkdownWriter`, an implementation of `BaseWriter` for
+generating a data catalog in Markdown format.
 
-It implements the `BaseWriter` interface and converts the structured catalog
-data into a human-readable Markdown file, including tables for columns, view
-definitions, and a Mermaid.js Entity Relationship Diagram (ERD).
+It converts the structured catalog data into a human-readable Markdown file,
+including an ERD, and sections for database views and tables.
 """
 
 from typing import Dict, List, Any
@@ -20,14 +20,18 @@ logger = get_logger(__name__)
 class MarkdownWriter(BaseWriter):
     """
     Implements `BaseWriter` to write a database catalog to a Markdown file.
+
+    This class transforms the abstract catalog dictionary into a rich,
+    human-readable Markdown document.
     """
 
     def _generate_erd_mermaid(self, foreign_keys: List[Dict[str, str]]) -> str:
         """
-        Generates a Mermaid ERD chart from foreign key data.
+        Generates a Mermaid.js ERD chart from foreign key data.
 
         This helper function takes a list of foreign key relationships and
-        constructs a string containing Mermaid graph syntax.
+        constructs a string containing Mermaid graph syntax. It uses the
+        `source_table` and `target_table` keys from the foreign key dictionaries.
 
         Args:
             foreign_keys: A list of dictionaries, each representing a
@@ -40,16 +44,16 @@ class MarkdownWriter(BaseWriter):
         if not foreign_keys:
             return "No foreign key relationships found to generate a diagram."
 
-        # Mermaid syntax reference: https://mermaid.js.org/syntax/entityRelationshipDiagram.html
         code = ["```mermaid", "erDiagram"]
-
-        # Add all relationships to the diagram definition.
         for fk in foreign_keys:
-            # Example syntax: "users" ||--o{ "orders" : "has"
+            # Mermaid syntax: "users" ||--o{ "orders" : "has"
+            source_table = fk["source_table"]
+            target_table = fk["target_table"]
+            source_column = fk["source_column"]
+            target_column = fk["target_column"]
             code.append(
-                f'    {fk["from_table"]} ||--o{{ {fk["to_table"]} : "{fk["from_column"]} to {fk["to_column"]}"'
+                f'    "{source_table}" ||--o{{ "{target_table}" : "{source_column} to {target_column}"'
             )
-
         code.append("```")
         return "\n".join(code)
 
@@ -57,13 +61,15 @@ class MarkdownWriter(BaseWriter):
         """
         Writes the catalog data to a Markdown file.
 
-        The generated file includes a title, an ERD chart, and sections for
-        all database views and tables.
+        The generated file has the following structure:
+        1.  A main title.
+        2.  An Entity Relationship Diagram (ERD) generated with Mermaid.js.
+        3.  A section for all database views with their summaries and SQL code.
+        4.  A section for all database tables with their summaries and column details.
 
         Args:
             catalog_data: A dictionary containing the structured catalog data.
-            **kwargs: Additional writer-specific arguments. Expects
-                      `output_filename` and `db_profile_name`.
+            **kwargs: Must contain `output_filename` and `db_profile_name`.
 
         Raises:
             ConfigError: If required `kwargs` are missing.
@@ -72,26 +78,25 @@ class MarkdownWriter(BaseWriter):
         output_filename = kwargs.get("output_filename")
         db_profile_name = kwargs.get("db_profile_name")
         if not output_filename or not db_profile_name:
-            logger.error(
-                "MarkdownWriter 'write' method missing 'output_filename' or 'db_profile_name'."
+            raise ConfigError(
+                "MarkdownWriter requires 'output_filename' and 'db_profile_name' in kwargs."
             )
-            raise ConfigError("Missing required kwargs for MarkdownWriter.")
 
         try:
             with open(output_filename, "w", encoding="utf-8") as f:
                 logger.info(
                     f"Writing data catalog for '{db_profile_name}' to '{output_filename}'."
                 )
-                # --- 1. Main Title ---
+                # 1. Main Title
                 f.write(f"# 📁 Data Catalog for {db_profile_name}\n")
 
-                # --- 2. ERD Section ---
+                # 2. ERD Section
                 f.write("\n## 🚀 Entity Relationship Diagram (ERD)\n\n")
                 foreign_keys = catalog_data.get("foreign_keys", [])
                 mermaid_code = self._generate_erd_mermaid(foreign_keys)
                 f.write(mermaid_code + "\n")
 
-                # --- 3. Views Section ---
+                # 3. Views Section
                 f.write("\n## 🔎 Views\n\n")
                 views = catalog_data.get("views", [])
                 if not views:
@@ -108,34 +113,29 @@ class MarkdownWriter(BaseWriter):
                             f"```sql\n{view.get('definition', 'N/A')}\n```\n\n"
                         )
 
-                # --- 4. Tables Section ---
+                # 4. Tables Section
                 f.write("\n## 🗂️ Tables\n\n")
                 tables = catalog_data.get("tables", [])
                 if not tables:
                     f.write("No tables found in this database.\n")
                 else:
                     for table in tables:
-                        table_name = table["name"]
-                        columns = table["columns"]
-
-                        f.write(f"### 📄 Table: `{table_name}`\n\n")
+                        f.write(f"### 📄 Table: `{table['name']}`\n\n")
+                        f.write("**AI-Generated Summary:**\n")
+                        f.write(
+                            f"> {table.get('ai_summary', '(No summary available)')}\n\n"
+                        )
                         f.write(
                             "| Column Name | Data Type | AI-Generated Description |\n"
                         )
                         f.write("| :--- | :--- | :--- |\n")
-
-                        for column in columns:
-                            col_name = column["name"]
-                            col_type = column["type"]
-                            description = column["description"]
+                        for column in table.get("columns", []):
                             f.write(
-                                f"| `{col_name}` | `{col_type}` | {description} |\n"
+                                f"| `{column['name']}` | `{column['type']}` | {column['description']} |\n"
                             )
+                        f.write("\n")
             logger.info(f"Successfully wrote catalog to '{output_filename}'.")
         except IOError as e:
-            logger.error(
-                f"Error writing to file '{output_filename}': {e}", exc_info=True
-            )
             raise WriterError(
                 f"Error writing to file '{output_filename}': {e}"
             ) from e

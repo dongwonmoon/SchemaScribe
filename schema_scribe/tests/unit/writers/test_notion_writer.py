@@ -40,10 +40,10 @@ def mock_db_catalog_data():
         ],
         "foreign_keys": [
             {
-                "from_table": "orders",
-                "to_table": "users",
-                "from_column": "user_id",
-                "to_column": "id",
+                "source_table": "orders",
+                "target_table": "users",
+                "source_column": "user_id",
+                "target_column": "id",
             }
         ],
     }
@@ -145,7 +145,7 @@ def test_notion_writer_resolves_env_var(
     writer.write(mock_db_catalog_data, **kwargs)
 
     # Assert client was initialized with the *resolved* key
-    mock_notion_client.assert_called_once_with(auth="${NOTION_TEST_KEY}")
+    mock_notion_client.assert_called_once_with(auth="env_key_value")
 
 
 def test_notion_writer_config_errors(mock_db_catalog_data):

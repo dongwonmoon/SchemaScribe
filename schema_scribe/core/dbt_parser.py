@@ -1,10 +1,10 @@
 """
-This module provides a parser for dbt (data build tool) `manifest.json` files.
+This module provides `DbtManifestParser`, a foundational component for all
+dbt-related workflows in the application.
 
-The `DbtManifestParser` class is responsible for loading the manifest, finding
-all model nodes, and extracting relevant information like SQL code, columns,
-and descriptions. This data is then used by other parts of the application to
-generate a data catalog.
+The parser is responsible for reading the complex `manifest.json` file generated
+by dbt and transforming it into a simplified, structured format that other parts
+of the application can easily consume.
 """
 
 import json
@@ -23,9 +23,9 @@ class DbtManifestParser:
     """
     Parses a dbt `manifest.json` file to extract model and column information.
 
-    This class locates and loads the manifest created by a `dbt compile` or
-    `dbt run` command, then provides a structured list of all dbt models
-    found within it.
+    This class acts as an adapter, locating and loading the raw manifest created
+    by a `dbt compile` or `dbt run` command, then providing a clean, structured
+    list of all dbt models found within it via the `models` cached property.
     """
 
     def __init__(self, dbt_project_dir: str):
@@ -49,12 +49,14 @@ class DbtManifestParser:
         """
         Loads the `manifest.json` file from the project's `target` directory.
 
+        Note: `dbt compile` or a similar command must be run first to ensure
+        this file exists.
+
         Returns:
             A dictionary containing the parsed JSON data from the manifest file.
 
         Raises:
-            DbtParseError: If the manifest file cannot be found (e.g., because
-                           `dbt compile` has not been run) or if it is malformed.
+            DbtParseError: If the manifest file is not found or is malformed.
         """
         logger.info(f"Loading manifest from: {self.manifest_path}")
         try:
@@ -73,15 +75,34 @@ class DbtManifestParser:
     @cached_property
     def models(self) -> List[Dict[str, Any]]:
         """
-        Parses all 'model' nodes in the manifest and extracts key information.
+        Parses all 'model' nodes in the manifest into a structured list.
 
-        This method is a `cached_property`, so it only performs the parsing work
-        the first time it is accessed.
+        This method is a `cached_property`, so it performs the parsing work only
+        once on the first access. It iterates through all nodes in the manifest,
+        filters for `resource_type: 'model'`, and extracts key details.
 
         Returns:
             A list of dictionaries, where each dictionary represents a dbt model
-            with keys such as `name`, `unique_id`, `description`, `raw_sql`,
-            `columns`, and `original_file_path`.
+            with the following structure:
+            ```
+            {
+                "name": str,              # The name of the model.
+                "unique_id": str,         # The unique ID from the manifest.
+                "description": str,       # The model's description.
+                "raw_sql": str,           # The raw SQL code of the model.
+                "columns": [              # A list of column dictionaries.
+                    {
+                        "name": str,
+                        "description": str,
+                        "type": str,      # The data type, if available.
+                    },
+                    ...
+                ],
+                "dependencies": [str],    # A list of parent model/source names.
+                "path": str,              # The relative path to the model file.
+                "original_file_path": str # The full path to the model file.
+            }
+            ```
         """
         parsed_models = []
         nodes = self.manifest_data.get("nodes", {})
@@ -104,6 +125,7 @@ class DbtManifestParser:
                         }
                     )
 
+                # Parse dependencies (parents of the current model)
                 depends_on_nodes = node_data.get("depends_on", {}).get(
                     "nodes", []
                 )
@@ -111,13 +133,13 @@ class DbtManifestParser:
                 for dep_key in depends_on_nodes:
                     dep_node = nodes.get(dep_key, {})
                     dep_type = dep_node.get("resource_type")
-                    if dep_type == "model" or dep_type == "seed":
+                    if dep_type in ["model", "seed"]:
                         dependencies.append(dep_node.get("name"))
                     elif dep_type == "source":
-                        # For sources, get 'source_name.name' (e.g., 'jaffle_shop.customers')
-                        dependencies.append(
-                            f"{dep_node.get('source_name')}.{dep_node.get('name')}"
-                        )
+                        # For sources, format as 'source_name.name'
+                        source_name = dep_node.get("source_name")
+                        table_name = dep_node.get("name")
+                        dependencies.append(f"{source_name}.{table_name}")
 
                 parsed_models.append(
                     {
@@ -129,6 +151,7 @@ class DbtManifestParser:
                             "raw_sql", "-- SQL code not available --"
                         ),
                         "columns": parsed_columns,
+                        "dependencies": dependencies,
                         "path": node_data.get("path"),
                         "original_file_path": node_data.get(
                             "original_file_path"

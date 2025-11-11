@@ -148,7 +148,7 @@ def test_dbt_yaml_writer_update(dbt_project):
         }
     }
 
-    writer.update_yaml_files(catalog_to_update)
+    writer.write(catalog_to_update)
 
     yaml = YAML()
     with open(f"{dbt_project}/models/schema.yml", "r") as f:
@@ -172,7 +172,7 @@ def test_dbt_yaml_writer_check_mode_no_changes(dbt_project):
             "columns": [{"name": "customer_id", "ai_generated": {}}],
         }
     }
-    updates_needed = writer.update_yaml_files(catalog)
+    updates_needed = writer.write(catalog)
     assert not updates_needed
 
 
@@ -183,7 +183,7 @@ def test_dbt_yaml_writer_check_mode_changes_needed(dbt_project):
     catalog = {
         "customers": {"model_description": "A new description.", "columns": []}
     }
-    updates_needed = writer.update_yaml_files(catalog)
+    updates_needed = writer.write(catalog)
     assert updates_needed
 
 
@@ -204,7 +204,7 @@ def test_dbt_yaml_writer_malformed_yaml(dbt_project):
     with pytest.raises(
         WriterError, match=f"Failed to parse YAML file: {schema_file}"
     ):
-        writer.update_yaml_files(catalog)
+        writer.write(catalog)
 
 
 def test_dbt_writer_stub_creation_update_mode(
@@ -220,7 +220,7 @@ def test_dbt_writer_stub_creation_update_mode(
     writer = DbtYamlWriter(dbt_project_dir=project_dir, mode="update")
 
     # Run the update
-    writer.update_yaml_files(mock_catalog_for_stubs)
+    writer.write(mock_catalog_for_stubs)
 
     yaml = YAML()
 
@@ -281,7 +281,7 @@ def test_dbt_writer_stub_creation_check_mode(
     writer = DbtYamlWriter(dbt_project_dir=project_dir, mode="check")
 
     # Run the check
-    updates_needed = writer.update_yaml_files(mock_catalog_for_stubs)
+    updates_needed = writer.write(mock_catalog_for_stubs)
 
     # --- Assert 1: Changes are needed ---
     assert (
@@ -324,7 +324,7 @@ def test_dbt_writer_stub_creation_interactive_mode(
     writer = DbtYamlWriter(dbt_project_dir=project_dir, mode="interactive")
 
     # Run the interactive update
-    writer.update_yaml_files(mock_catalog_for_stubs)
+    writer.write(mock_catalog_for_stubs)
 
     # --- Asserts ---
     # The assertions should be identical to the 'update' mode test,
@@ -377,7 +377,7 @@ def test_dbt_yaml_writer_interactive_accept(mock_prompt, dbt_project):
         }
     }
 
-    writer.update_yaml_files(catalog_to_update)
+    writer.write(catalog_to_update)
 
     # Verify the file was updated with the AI's description
     yaml = YAML()
@@ -406,7 +406,7 @@ def test_dbt_yaml_writer_interactive_edit(mock_prompt, dbt_project):
         }
     }
 
-    writer.update_yaml_files(catalog_to_update)
+    writer.write(catalog_to_update)
 
     # Verify the file was updated with the USER'S description
     yaml = YAML()
@@ -440,7 +440,7 @@ def test_dbt_yaml_writer_interactive_skip(mock_prompt, dbt_project):
         initial_data = yaml.load(f)
     assert "description" not in initial_data["models"][0]
 
-    writer.update_yaml_files(catalog_to_update)
+    writer.write(catalog_to_update)
 
     # Verify the file is unchanged
     with open(f"{dbt_project}/models/schema.yml", "r") as f:

@@ -91,7 +91,8 @@ def test_postgres_comment_writer_missing_db_connector():
     """Tests that ConfigError is raised if db_connector is missing."""
     writer = PostgresCommentWriter()
     with pytest.raises(
-        ConfigError, match="PostgresCommentWriter requires 'db_connector'"
+        ConfigError,
+        match="PostgresCommentWriter requires a 'postgres' db_profile and its active connector.",
     ):
         writer.write({}, some_other_arg="value")
 
@@ -103,7 +104,7 @@ def test_postgres_comment_writer_wrong_db_connector_type():
     mock_connector.connection = None  # Simulate not connected
     with pytest.raises(
         ConfigError,
-        match="PostgresCommentWriter is only compatible with 'postgres'",
+        match="PostgresCommentWriter requires a 'postgres' db_profile and its active connector.",
     ):
         writer.write({}, db_connector=MagicMock())  # Pass a generic mock
 
@@ -112,7 +113,9 @@ def test_postgres_comment_writer_db_not_connected(mock_postgres_connector):
     """Tests that ConnectorError is raised if the provided db_connector is not connected."""
     mock_postgres_connector.connection = None  # Simulate not connected
     writer = PostgresCommentWriter()
-    with pytest.raises(ConnectorError, match="db_connector is not connected."):
+    with pytest.raises(
+        ConnectorError, match="The provided PostgresConnector is not connected."
+    ):
         writer.write({}, db_connector=mock_postgres_connector)
 
 
