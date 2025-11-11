@@ -30,6 +30,9 @@ class DbtCatalogGenerator:
     its models, columns, and dependencies. It then uses a `BaseLLMClient` to
     generate model descriptions, structured column metadata (including tags,
     tests, and PII status), and Mermaid.js lineage graphs.
+
+    It can also connect to a live database to perform "drift detection,"
+    comparing existing documentation against live data profiles.
     """
 
     def __init__(self, llm_client: BaseLLMClient, db_connector: BaseConnector | None = None):
@@ -38,6 +41,8 @@ class DbtCatalogGenerator:
 
         Args:
             llm_client: An initialized client for the desired LLM provider.
+            db_connector: (Optional) An initialized database connector, required
+                          only for running drift detection checks.
         """
         self.llm_client = llm_client
         self.db_connector = db_connector
@@ -59,11 +64,14 @@ class DbtCatalogGenerator:
 
         This method parses the dbt manifest, iterates through all discovered
         models, and generates AI-based documentation for each model and its
-        columns.
+        columns. If `run_drift_check` is True, it will also compare existing
+        documentation against the live database.
 
         Args:
-            dbt_project_dir: The absolute path to the root of the dbt project,
-                             which contains the `dbt_project.yml` file.
+            dbt_project_dir: The absolute path to the root of the dbt project.
+            run_drift_check: If True, perform drift detection for columns that
+                             already have descriptions. Requires `db_connector`
+                             to be initialized.
 
         Returns:
             A dictionary representing the data catalog, keyed by model name.
@@ -71,22 +79,18 @@ class DbtCatalogGenerator:
             ```
             {
                 "model_name": {
-                    "model_description": "AI-generated model summary.",
-                    "model_lineage_chart": "```mermaid\\n...\\n```",
+                    "model_description": "...",
+                    "model_lineage_chart": "...",
                     "columns": [
                         {
                             "name": "column_name",
                             "type": "column_type",
-                            "ai_generated": {
-                                "description": "AI-generated column description.",
-                                "meta": { "pii": True/False },
-                                "tags": [ "tag1", "tag2" ],
-                                "tests": [ "unique", "not_null" ]
-                            }
+                            "ai_generated": { ... },
+                            "drift_status": "DRIFT" | "MATCH" | "N/A"
                         },
                         ...
                     ],
-                    "original_file_path": "/path/to/model.sql"
+                    "original_file_path": "..."
                 },
                 ...
             }

@@ -51,6 +51,9 @@ data-scribe dbt --project-dir /path/to/your/dbt/project --check
 
 # Let AI fix it
 data-scribe dbt --project-dir /path/to/your/dbt/project --update
+
+# Check for documentation drift against the live database
+data-scribe dbt --project-dir /path/to/your/dbt/project --db your_db_profile --drift
 ```
 
 **For a database:**
@@ -69,6 +72,7 @@ data-scribe db --output my_markdown
     -   **Direct YAML Updates**: Seamlessly updates your dbt `schema.yml` files with AI-generated content.
     -   **CI/CD Validation**: Use the `--check` flag in your CI pipeline to fail builds if documentation is outdated.
     -   **Interactive Updates**: Use the `--interactive` flag to review and approve AI-generated changes one by one.
+    -   **Documentation Drift Detection**: Use the `--drift` flag to compare your existing documentation against the live database, catching descriptions that have become inconsistent with reality.
 -   **🔒 Security-Aware**: The `init` wizard helps you store sensitive keys (passwords, API tokens) in a `.env` file, not in `config.yaml`.
 -   **🔌 Extensible by Design**: A pluggable architecture supports multiple backends.
 
@@ -106,10 +110,11 @@ Scans a dbt project's `manifest.json` file.
 -   `--update`: (Flag) Directly update dbt `schema.yml` files.
 -   `--check`: (Flag) Run in CI mode. Fails if documentation is outdated.
 -   `--interactive`: (Flag) Run in interactive mode. Prompts user for each AI-generated change.
+-   `--drift`: (Flag) Run in drift detection mode. Fails if existing documentation conflicts with the live database schema. Requires a `--db` profile.
 -   `--llm TEXT`: (Optional) The LLM profile to use.
 -   `--output TEXT`: (Optional) The output profile to use (if not using `--update`, `--check`, or `--interactive`).
 
-**Note:** `--update`, `--check`, and `--interactive` flags are mutually exclusive. Choose only one.
+**Note:** `--update`, `--check`, `--interactive`, and `--drift` flags are mutually exclusive. Choose only one.
 
 ---
 

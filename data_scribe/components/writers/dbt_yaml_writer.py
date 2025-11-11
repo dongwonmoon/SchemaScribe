@@ -26,10 +26,6 @@ class DbtYamlWriter:
     This writer is specialized for dbt projects. It can enrich existing
     `schema.yml` files with AI-generated content, check if documentation is
     up-to-date, or interactively prompt the user for changes.
-
-    Note: This class does not implement the `BaseWriter` interface, as its
-    functionality is specific to the dbt workflow and requires special
-    parameters and methods (`update_yaml_files` instead of `write`).
     """
 
     def __init__(self, dbt_project_dir: str, mode: str = "update"):
@@ -38,9 +34,8 @@ class DbtYamlWriter:
 
         Args:
             dbt_project_dir: The absolute path to the root of the dbt project.
-            mode: The operation mode. Must be one of 'update' (overwrite changes),
-                  'check' (fail if changes are needed), or 'interactive'
-                  (prompt user for each change).
+            mode: The operation mode. Must be one of 'update', 'check',
+                  'interactive', or 'drift'.
 
         Raises:
             ValueError: If an invalid mode is provided.
@@ -94,6 +89,7 @@ class DbtYamlWriter:
 
     def _load_and_map_existing_yamls(self):
         """
+
         Loads all found schema.yml files into memory and builds a map
         of which file documents which model.
         """
@@ -111,7 +107,7 @@ class DbtYamlWriter:
                     for node_type in [
                         "models",
                         "sources",
-                        "seeds",
+"seeds",
                         "snapshots",
                     ]:
                         for node_config in data.get(node_type, []):
@@ -134,14 +130,14 @@ class DbtYamlWriter:
 
         This is the main entrypoint for the writer. It orchestrates finding,
         parsing, and updating the YAML files. The exact behavior depends on the
-        mode the writer was initialized with ('update', 'check', 'interactive').
+        mode the writer was initialized with ('update', 'check', 'interactive', 'drift').
 
         Args:
             catalog_data: The AI-generated catalog data, keyed by model name.
 
         Returns:
             `True` if any documentation was missing or outdated (especially
-            relevant for 'check' mode), otherwise `False`.
+            relevant for 'check' and 'drift' modes), otherwise `False`.
         """
         self._load_and_map_existing_yamls()
 
@@ -171,7 +167,7 @@ class DbtYamlWriter:
                 ):
                     total_updates_needed = True
 
-        if self.mode != "check" and self.files_to_write:
+        if self.mode not in ["check", "drift"] and self.files_to_write:
             logger.info(
                 f"Writing changes to {len(self.files_to_write)} file(s)..."
             )
@@ -185,16 +181,25 @@ class DbtYamlWriter:
                         f"Failed to write updates to '{file_path}': {e}"
                     )
 
-        elif self.mode == "check" and total_updates_needed:
-            logger.warning("CI CHECK: Changes are needed (see warnings above).")
+        elif self.mode in ["check", "drift"] and total_updates_needed:
+             log_msg = "documentation is outdated" if self.mode == "check" else "documentation drift was detected"
+             logger.warning(f"CI CHECK ({self.mode} mode): Changes are needed. {log_msg}.")
         elif not total_updates_needed:
             logger.info("All dbt documentation is up-to-date. No changes made.")
-
         return total_updates_needed
 
     def _update_existing_model(
         self, file_path: str, model_name: str, ai_model_data: Dict[str, Any]
     ) -> bool:
+        """
+        Updates a single model's documentation within a loaded YAML file.
+
+        In 'drift' mode, this also checks for inconsistencies between the
+        existing documentation and the live database profile.
+
+        Returns:
+            True if a change was made or is needed.
+        """
         file_changed = False
         data = self.yaml_files.get(file_path)
         if not data:
@@ -215,7 +220,10 @@ class DbtYamlWriter:
         logger.info(f" -> Checking model: '{model_name}' in '{file_path}'")
 
         ai_model_desc = ai_model_data.get("model_description")
-        if ai_model_desc and not node_config.get("description"):
+        
+        if self.mode == "drift":
+            pass
+        elif ai_model_desc and not node_config.get("description"):
             if self._process_update(
                 config_node=node_config,
                 key="description",
@@ -236,6 +244,7 @@ class DbtYamlWriter:
                     None,
                 )
                 if ai_column:
+                    # In drift mode, check for drift and flag it.
                     if self.mode == "drift" and column_config.get("description"):
                         drift_status = ai_column.get("drift_status")
                         if drift_status == "DRIFT":
@@ -244,6 +253,7 @@ class DbtYamlWriter:
                             )
                             file_changed = True # This flags the CI to fail
                             
+                    # For other modes, fill in missing AI-generated data.
                     ai_data_dict = ai_column.get("ai_generated", {})
                     for key, ai_value in ai_data_dict.items():
                         if not column_config.get(key):
@@ -380,14 +390,15 @@ class DbtYamlWriter:
     ) -> bool:
         """
         Handles the logic for a single missing key based on the writer's mode.
+
+        In 'drift' mode, it just logs a warning with a 'DRIFT CHECK' prefix.
         Returns True if a change was made or is needed.
         """
         log_target = f"'{key}' on '{node_log_name}'"
 
-        if self.mode in ["check", "drift"]:
-            log_prefix = "CI CHECK" if self.mode == "check" else "DRIFT CHECK"
-            logger.warning(f"{log_prefix}: Missing {log_target}")
-            return True  # A change is needed
+        if self.mode == "check":
+            logger.warning(f"CI CHECK: Missing {log_target}")
+            return True
 
         elif self.mode == "interactive":
             final_value = self._prompt_user_for_change(

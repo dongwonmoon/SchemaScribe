@@ -8,7 +8,7 @@ and writing or updating dbt documentation, orchestrated by the `DbtWorkflow` cla
 from typing import Optional
 import typer
 
-from data_scribe.core.factory import get_writer
+from data_scribe.core.factory import get_writer, get_db_connector
 from data_scribe.core.dbt_catalog_generator import DbtCatalogGenerator
 from data_scribe.components.writers.dbt_yaml_writer import DbtYamlWriter
 from data_scribe.core.workflow_helpers import (
@@ -46,12 +46,14 @@ class DbtWorkflow:
 
         Args:
             dbt_project_dir: The path to the dbt project directory.
+            db_profile: The name of the database profile to use (required for drift).
             llm_profile: The name of the LLM profile to use.
             config_path: The path to the configuration file.
             output_profile: The name of the output profile to use.
             update_yaml: Flag to update dbt schema.yml files directly.
             check: Flag to run in CI mode to check for outdated documentation.
             interactive: Flag to prompt the user for each AI-generated change.
+            drift: Flag to run in drift detection mode.
         """
         self.dbt_project_dir = dbt_project_dir
         self.db_profile_name = db_profile
@@ -70,9 +72,11 @@ class DbtWorkflow:
 
         This method orchestrates the following steps:
         1. Initializes the LLM client.
-        2. Generates a catalog of the dbt project using `DbtCatalogGenerator`.
-        3. Executes one of the output modes based on CLI flags:
-           - `--check`: Verifies if dbt documentation is up-to-date.
+        2. If in drift mode, initializes a DB connector.
+        3. Generates a catalog of the dbt project using `DbtCatalogGenerator`.
+        4. Executes one of the output modes based on CLI flags:
+           - `--drift`: Checks for inconsistencies between docs and live data.
+           - `--check`: Verifies if dbt documentation is missing.
            - `--update` or `--interactive`: Updates `schema.yml` files.
            - `--output`: Writes the catalog to a file (e.g., Markdown).
         """

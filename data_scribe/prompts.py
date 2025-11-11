@@ -207,14 +207,16 @@ Answer with a single word: 'MATCH' or 'DRIFT'.
 
 Response (MATCH or DRIFT):
 """
-
 """
-Prompt template for checking documentation drift.
-This prompt asks the LLM to act as a data governance auditor.
-It compares the existing documentation against new data profile stats.
+A prompt to check for documentation drift against live data.
+
+This prompt asks the LLM to act as a data governance auditor. It compares
+the existing documentation for a column against fresh data profile statistics
+from the live database to see if the description is still accurate.
+
 Placeholders:
-- {node_name}: The name of the model or table.
-- {column_name}: The name of the column.
-- {existing_description}: The documentation currently in schema.yml.
-- {profile_context}: The fresh data profile stats from the database.
+- `{node_name}`: The name of the model or table.
+- `{column_name}`: The name of the column.
+- `{existing_description}`: The documentation currently in schema.yml.
+- `{profile_context}`: The fresh data profile stats from the database.
 """
