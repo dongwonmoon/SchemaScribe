@@ -65,11 +65,11 @@ class DuckDBConnector(BaseConnector):
                 )
 
             self.base_path = path
-            
+
             # 1. Determine connection type
-            db_file = ":memory:" # Default to in-memory
+            db_file = ":memory:"  # Default to in-memory
             read_only = False
-            
+
             if path.endswith((".db", ".duckdb")):
                 db_file = path
                 read_only = True
@@ -77,12 +77,16 @@ class DuckDBConnector(BaseConnector):
                 logger.info(f"Connecting to persistent DuckDB file: '{path}'")
             else:
                 # Path is a file pattern or directory, so use an in-memory DB for querying.
-                logger.info(f"Connecting to in-memory DuckDB for path: '{path}'")
+                logger.info(
+                    f"Connecting to in-memory DuckDB for path: '{path}'"
+                )
                 if path.endswith(("/") or "*" in path):
-                     self.is_directory_scan = True
-                    
+                    self.is_directory_scan = True
+
             # 2. Establish connection
-            self.connection = duckdb.connect(database=db_file, read_only=read_only)
+            self.connection = duckdb.connect(
+                database=db_file, read_only=read_only
+            )
             self.cursor = self.connection.cursor()
 
             # 3. Handle S3 paths by installing the httpfs extension.
@@ -92,7 +96,9 @@ class DuckDBConnector(BaseConnector):
                     self.cursor.execute("INSTALL httpfs; LOAD httpfs;")
                     logger.info("Installed and loaded httpfs for S3 access.")
                 except Exception as e:
-                    logger.warning(f"Could not install/load httpfs, S3 access may fail: {e}")
+                    logger.warning(
+                        f"Could not install/load httpfs, S3 access may fail: {e}"
+                    )
 
             logger.info("Successfully connected to DuckDB.")
         except Exception as e:
@@ -114,11 +120,11 @@ class DuckDBConnector(BaseConnector):
         """
         if self.is_directory_scan:
             # Ensure a single slash between the base path and the file name.
-            if self.base_path.endswith('/'):
+            if self.base_path.endswith("/"):
                 return f"{self.base_path}{table_name}"
             else:
                 return f"{self.base_path}/{table_name}"
-        
+
         # If not a directory scan, the base_path is the full file/pattern path.
         return self.base_path
 
@@ -138,7 +144,9 @@ class DuckDBConnector(BaseConnector):
 
         # Case 1: Persistent .db file. Query the schema for tables and views.
         if self.base_path.endswith((".db", ".duckdb")):
-            logger.info(f"Fetching tables and views from DB: '{self.base_path}'")
+            logger.info(
+                f"Fetching tables and views from DB: '{self.base_path}'"
+            )
             self.cursor.execute("SHOW ALL TABLES;")
             tables = [row[0] for row in self.cursor.fetchall()]
             logger.info(f"Found {len(tables)} tables/views.")
@@ -147,17 +155,19 @@ class DuckDBConnector(BaseConnector):
         # Case 2: Directory scan. Use glob to find files in the directory.
         if self.is_directory_scan:
             glob_func = "s3_glob" if self.is_s3 else "glob"
-            
+
             # Ensure path ends with a wildcard for globbing
             glob_path = self.base_path
             if not glob_path.endswith(("*", "*/")):
-                 if not glob_path.endswith('/'):
-                     glob_path += "/"
-                 glob_path += "*.*" # Glob for common file types
-            
-            query = f"SELECT basename(file_name) FROM {glob_func}('{glob_path}')"
+                if not glob_path.endswith("/"):
+                    glob_path += "/"
+                glob_path += "*.*"  # Glob for common file types
+
+            query = (
+                f"SELECT basename(file_name) FROM {glob_func}('{glob_path}')"
+            )
             logger.info(f"Globbing for files using query: {query}")
-            
+
             try:
                 self.cursor.execute(query)
                 # Return just the file names, not the full path, as "tables".
@@ -165,7 +175,10 @@ class DuckDBConnector(BaseConnector):
                 logger.info(f"Found {len(tables)} files in directory.")
                 return tables
             except Exception as e:
-                logger.error(f"Failed to glob files at '{self.base_path}': {e}", exc_info=True)
+                logger.error(
+                    f"Failed to glob files at '{self.base_path}': {e}",
+                    exc_info=True,
+                )
                 raise ConnectorError(f"Failed to list files: {e}")
 
         # Case 3: Single file or pattern. Return the path itself as the "table".
@@ -207,10 +220,17 @@ class DuckDBConnector(BaseConnector):
             return columns
 
         except Exception as e:
-            logger.error(f"Failed to fetch columns for '{table_name}': {e}", exc_info=True)
-            raise ConnectorError(f"Failed to fetch columns for '{table_name}': {e}") from e
+            logger.error(
+                f"Failed to fetch columns for '{table_name}': {e}",
+                exc_info=True,
+            )
+            raise ConnectorError(
+                f"Failed to fetch columns for '{table_name}': {e}"
+            ) from e
 
-    def get_column_profile(self, table_name: str, column_name: str) -> Dict[str, Any]:
+    def get_column_profile(
+        self, table_name: str, column_name: str
+    ) -> Dict[str, Any]:
         """
         Generates profile stats for a column in a DuckDB table or file.
 
@@ -230,7 +250,7 @@ class DuckDBConnector(BaseConnector):
         # 1. Determine the source (a table name or a file-based subquery).
         source_query = ""
         if self.base_path.endswith((".db", ".duckdb")):
-            source_query = f'"{table_name}"' # It's a table
+            source_query = f'"{table_name}"'  # It's a table
         else:
             # It's a file, so create a subquery using read_auto.
             full_path = self._get_full_path(table_name)
@@ -249,14 +269,21 @@ class DuckDBConnector(BaseConnector):
         try:
             self.cursor.execute(query)
             row = self.cursor.fetchone()
-            
+
             total_count = row[0]
             null_count = row[1] if row[1] is not None else 0
             distinct_count = row[2] if row[2] is not None else 0
 
             if total_count == 0:
-                logger.info(f"  - Profile for '{table_name}.{column_name}': Table is empty.")
-                return {"null_ratio": 0, "distinct_count": 0, "is_unique": True, "total_count": 0}
+                logger.info(
+                    f"  - Profile for '{table_name}.{column_name}': Table is empty."
+                )
+                return {
+                    "null_ratio": 0,
+                    "distinct_count": 0,
+                    "is_unique": True,
+                    "total_count": 0,
+                }
 
             null_ratio = null_count / total_count
             is_unique = (distinct_count == total_count) and (null_count == 0)
@@ -267,15 +294,22 @@ class DuckDBConnector(BaseConnector):
                 "distinct_count": distinct_count,
                 "is_unique": is_unique,
             }
-            logger.info(f"  - Profile for '{table_name}.{column_name}': {stats}")
+            logger.info(
+                f"  - Profile for '{table_name}.{column_name}': {stats}"
+            )
             return stats
 
         except Exception as e:
             logger.warning(
                 f"Failed to profile column '{table_name}.{column_name}': {e}",
-                exc_info=True
+                exc_info=True,
             )
-            return {"null_ratio": "N/A", "distinct_count": "N/A", "is_unique": False, "total_count": "N/A"}
+            return {
+                "null_ratio": "N/A",
+                "distinct_count": "N/A",
+                "is_unique": False,
+                "total_count": "N/A",
+            }
 
     def get_views(self) -> List[Dict[str, str]]:
         """
@@ -306,15 +340,18 @@ class DuckDBConnector(BaseConnector):
         """
         if not self.cursor:
             raise ConnectorError("Not connected to a DuckDB database.")
-        
+
         if not self.base_path.endswith((".db", ".duckdb")):
-            logger.info("Foreign keys are not supported for file/directory scans.")
+            logger.info(
+                "Foreign keys are not supported for file/directory scans."
+            )
             return []
 
         logger.info("Fetching foreign key relationships...")
         try:
             # DuckDB >= 0.9.0 has a more robust constraints function.
-            self.cursor.execute("""
+            self.cursor.execute(
+                """
                 SELECT
                     fk.table_name AS from_table,
                     fk.column_names[1] AS from_column,
@@ -323,12 +360,15 @@ class DuckDBConnector(BaseConnector):
                 FROM duckdb_constraints() fk
                 JOIN duckdb_constraints() pk ON fk.primary_key_index = pk.constraint_index
                 WHERE fk.constraint_type = 'FOREIGN KEY'
-            """)
+            """
+            )
         except duckdb.CatalogException:
             # Fallback for older DuckDB versions.
-            logger.warning("Using legacy foreign key query for older DuckDB version.")
+            logger.warning(
+                "Using legacy foreign key query for older DuckDB version."
+            )
             self.cursor.execute("SELECT * FROM duckdb_foreign_keys();")
-            
+
         foreign_keys = [
             {
                 "from_table": fk[0],
@@ -338,7 +378,7 @@ class DuckDBConnector(BaseConnector):
             }
             for fk in self.cursor.fetchall()
         ]
-        
+
         logger.info(f"Found {len(foreign_keys)} foreign key relationships.")
         return foreign_keys
 

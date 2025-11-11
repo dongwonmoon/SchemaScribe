@@ -14,7 +14,7 @@ from data_scribe.prompts import (
     DBT_MODEL_PROMPT,
     DBT_COLUMN_PROMPT,
     DBT_MODEL_LINEAGE_PROMPT,
-    DBT_DRIFT_CHECK_PROMPT
+    DBT_DRIFT_CHECK_PROMPT,
 )
 from data_scribe.utils.logger import get_logger
 
@@ -35,7 +35,11 @@ class DbtCatalogGenerator:
     comparing existing documentation against live data profiles.
     """
 
-    def __init__(self, llm_client: BaseLLMClient, db_connector: BaseConnector | None = None):
+    def __init__(
+        self,
+        llm_client: BaseLLMClient,
+        db_connector: BaseConnector | None = None,
+    ):
         """
         Initializes the DbtCatalogGenerator.
 
@@ -48,17 +52,19 @@ class DbtCatalogGenerator:
         self.db_connector = db_connector
         self.yaml_parser = YAML()
         logger.info("DbtCatalogGenerator initialized.")
-        
+
     def _format_profile_stats(self, profile_stats: Dict[str, Any]) -> str:
         """(Helper) Formats profile stats for the prompt."""
         context_lines = [
             f"- Null Ratio: {profile_stats.get('null_ratio', 'N/A')}",
             f"- Is Unique: {profile_stats.get('is_unique', 'N/A')}",
-            f"- Distinct Count: {profile_stats.get('distinct_count', 'N/A')}"
+            f"- Distinct Count: {profile_stats.get('distinct_count', 'N/A')}",
         ]
         return "\n".join(context_lines)
 
-    def generate_catalog(self, dbt_project_dir: str, run_drift_check: bool = False) -> Dict[str, Any]:
+    def generate_catalog(
+        self, dbt_project_dir: str, run_drift_check: bool = False
+    ) -> Dict[str, Any]:
         """
         Orchestrates the generation of a dbt data catalog.
 
@@ -133,15 +139,19 @@ class DbtCatalogGenerator:
                 col_name = column["name"]
                 col_type = column["type"]
                 existing_desc = column["description"]
-                
+
                 ai_data_dict = {}
                 drift_status = "N/A"
-                
+
                 if run_drift_check and self.db_connector and existing_desc:
-                    logger.info(f"  - Running drift check for: {model_name}.{col_name}")
-                    
+                    logger.info(
+                        f"  - Running drift check for: {model_name}.{col_name}"
+                    )
+
                     # 1. Get live profile stats
-                    profile_stats = self.db_connector.get_column_profile(table_name, col_name)
+                    profile_stats = self.db_connector.get_column_profile(
+                        table_name, col_name
+                    )
                     profile_context = self._format_profile_stats(profile_stats)
 
                     # 2. Ask AI to check for drift
@@ -149,16 +159,20 @@ class DbtCatalogGenerator:
                         node_name=model_name,
                         column_name=col_name,
                         existing_description=existing_desc,
-                        profile_context=profile_context
+                        profile_context=profile_context,
                     )
-                    ai_judgement = self.llm_client.get_description(drift_prompt, max_tokens=10).upper()
-                    
+                    ai_judgement = self.llm_client.get_description(
+                        drift_prompt, max_tokens=10
+                    ).upper()
+
                     if "DRIFT" in ai_judgement:
                         drift_status = "DRIFT"
-                        logger.warning(f"  - DRIFT DETECTED for {model_name}.{col_name}!")
+                        logger.warning(
+                            f"  - DRIFT DETECTED for {model_name}.{col_name}!"
+                        )
                     else:
                         drift_status = "MATCH"
-                        
+
                 if not existing_desc:
                     col_prompt = DBT_COLUMN_PROMPT.format(
                         model_name=model_name,
@@ -192,7 +206,7 @@ class DbtCatalogGenerator:
                         "name": col_name,
                         "type": col_type,
                         "ai_generated": ai_data_dict,
-                        "drift_status": drift_status
+                        "drift_status": drift_status,
                     }
                 )
 

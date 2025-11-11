@@ -42,18 +42,19 @@ DRIFT_MANIFEST = {
             "path": "customers.sql",
             "original_file_path": "models/customers.sql",
             "name": "customers",
-            "description": "This is an old description.", # Existing doc
+            "description": "This is an old description.",  # Existing doc
             "columns": {
                 "customer_id": {
                     "name": "customer_id",
-                    "description": "Unique ID for the customer", # Existing doc
-                    "data_type": "int"
+                    "description": "Unique ID for the customer",  # Existing doc
+                    "data_type": "int",
                 },
             },
             "raw_sql": "SELECT * FROM customers",
         }
     },
 }
+
 
 @pytest.fixture
 def mock_parsed_models_list() -> List[Dict[str, Any]]:
@@ -67,8 +68,8 @@ def mock_parsed_models_list() -> List[Dict[str, Any]]:
     decoupling it from the parser's internal logic.
     """
     node_data = DRIFT_MANIFEST["nodes"]["model.jaffle_shop.customers"]
-    
-    parsed_columns = [] # This will be a LIST
+
+    parsed_columns = []  # This will be a LIST
     for col_name, col_data in node_data.get("columns", {}).items():
         parsed_columns.append(
             {
@@ -147,6 +148,7 @@ db_connections:
     config_path.write_text(config_content)
     return str(config_path)
 
+
 @pytest.fixture
 def mock_db_connector(mocker):
     """
@@ -161,15 +163,16 @@ def mock_db_connector(mocker):
         "total_count": 100,
         "null_ratio": 0.0,
         "distinct_count": 100,
-        "is_unique": True, # This matches "Unique ID"
+        "is_unique": True,  # This matches "Unique ID"
     }
-    
+
     # Patch the factory function
     mocker.patch(
         "data_scribe.core.dbt_workflow.get_db_connector",
-        return_value=mock_connector
+        return_value=mock_connector,
     )
     return mock_connector
+
 
 @pytest.fixture
 def dbt_project_with_drift_docs(tmp_path: Path):
@@ -183,7 +186,7 @@ def dbt_project_with_drift_docs(tmp_path: Path):
     project_dir = tmp_path / "dbt_project"
     models_dir = project_dir / "models"
     models_dir.mkdir(parents=True)
-    
+
     # Create a dummy model file
     (models_dir / "customers.sql").write_text("select 1")
 
@@ -193,11 +196,11 @@ def dbt_project_with_drift_docs(tmp_path: Path):
         "models": [
             {
                 "name": "customers",
-                "description": "This is an old description.", # <--- MATCHES MANIFEST
+                "description": "This is an old description.",  # <--- MATCHES MANIFEST
                 "columns": [
                     {
                         "name": "customer_id",
-                        "description": "Unique ID for the customer" # <--- MATCHES MANIFEST
+                        "description": "Unique ID for the customer",  # <--- MATCHES MANIFEST
                     }
                 ],
             }
@@ -222,7 +225,7 @@ def test_dbt_workflow_update(dbt_project, config_for_dbt, mock_llm_client):
         update_yaml=True,
         check=False,
         interactive=False,
-        drift=False
+        drift=False,
     )
     workflow.run()
 
@@ -256,7 +259,7 @@ def test_dbt_workflow_check_fails(dbt_project, config_for_dbt, mock_llm_client):
         update_yaml=False,
         check=True,
         interactive=False,
-        drift=False
+        drift=False,
     )
     with pytest.raises(typer.Exit) as e:
         workflow.run()
@@ -277,7 +280,7 @@ def test_dbt_workflow_check_succeeds(
         update_yaml=True,
         check=False,
         interactive=False,
-        drift=False
+        drift=False,
     )
     update_workflow.run()
 
@@ -291,7 +294,7 @@ def test_dbt_workflow_check_succeeds(
         update_yaml=False,
         check=True,
         interactive=False,
-        drift=False
+        drift=False,
     )
 
     # This should run without raising an exception
@@ -302,6 +305,7 @@ def test_dbt_workflow_check_succeeds(
             f"--check mode failed unexpectedly with exit code {e.exit_code}"
         )
 
+
 @patch(
     "data_scribe.core.dbt_catalog_generator.DbtManifestParser",
 )
@@ -311,7 +315,7 @@ def test_dbt_workflow_drift_mode_no_drift(
     config_for_dbt,
     mock_llm_client,
     mock_db_connector,
-    mock_parsed_models_list
+    mock_parsed_models_list,
 ):
     """
     Tests the --drift mode when documentation MATCHES the live data.
@@ -325,21 +329,23 @@ def test_dbt_workflow_drift_mode_no_drift(
     mock_parser_instance = MagicMock()
     mock_parser_instance.models = mock_parsed_models_list
     mock_parser_constructor.return_value = mock_parser_instance
-    
+
     # Configure LLM to return "MATCH" for the auditor prompt
-    mock_llm_client.get_description.side_effect = lambda p, max_tokens: "MATCH" if "Auditor" in p else "AI Desc"
-    
+    mock_llm_client.get_description.side_effect = lambda p, max_tokens: (
+        "MATCH" if "Auditor" in p else "AI Desc"
+    )
+
     # 2. Act
     workflow = DbtWorkflow(
         dbt_project_dir=dbt_project_with_drift_docs,
-        db_profile="test_db", # Required for drift
+        db_profile="test_db",  # Required for drift
         llm_profile="test_llm",
         config_path=config_for_dbt,
         output_profile=None,
         update_yaml=False,
         check=False,
         interactive=False,
-        drift=True, # <--- Enable drift mode
+        drift=True,  # <--- Enable drift mode
     )
 
     # 3. Assert
@@ -352,12 +358,15 @@ def test_dbt_workflow_drift_mode_no_drift(
 
     # Verify that the LLM was called with the drift check prompt
     drift_prompt_call = next(
-        call for call in mock_llm_client.get_description.call_args_list
+        call
+        for call in mock_llm_client.get_description.call_args_list
         if "Auditor" in call[0][0]
     )
     assert drift_prompt_call is not None
-    assert "Unique ID for the customer" in drift_prompt_call[0][0] # Existing doc
-    assert "Is Unique: True" in drift_prompt_call[0][0] # Profile stat
+    assert (
+        "Unique ID for the customer" in drift_prompt_call[0][0]
+    )  # Existing doc
+    assert "Is Unique: True" in drift_prompt_call[0][0]  # Profile stat
 
 
 @patch(
@@ -369,7 +378,7 @@ def test_dbt_workflow_drift_mode_drift_detected(
     config_for_dbt,
     mock_llm_client,
     mock_db_connector,
-    mock_parsed_models_list
+    mock_parsed_models_list,
 ):
     """
     Tests the --drift mode when documentation conflicts with the live data.
@@ -384,17 +393,19 @@ def test_dbt_workflow_drift_mode_drift_detected(
     mock_parser_instance = MagicMock()
     mock_parser_instance.models = mock_parsed_models_list
     mock_parser_constructor.return_value = mock_parser_instance
-    
+
     # Configure DB profile to return CONFLICTING data
     mock_db_connector.get_column_profile.return_value = {
         "total_count": 100,
         "null_ratio": 0.5,
         "distinct_count": 10,
-        "is_unique": False, # <--- CONFLICTS with "Unique ID"
+        "is_unique": False,  # <--- CONFLICTS with "Unique ID"
     }
 
     # Configure LLM to see the conflict and return "DRIFT"
-    mock_llm_client.get_description.side_effect = lambda p, max_tokens: "DRIFT" if "Auditor" in p else "AI Desc"
+    mock_llm_client.get_description.side_effect = lambda p, max_tokens: (
+        "DRIFT" if "Auditor" in p else "AI Desc"
+    )
 
     # 2. Act
     workflow = DbtWorkflow(
@@ -412,15 +423,18 @@ def test_dbt_workflow_drift_mode_drift_detected(
     # 3. Assert
     with pytest.raises(typer.Exit) as e:
         workflow.run()
-    
+
     # Check that it exited with the CI failure code
     assert e.value.exit_code == 1
 
     # Verify that the LLM was called with the drift check prompt
     drift_prompt_call = next(
-        call for call in mock_llm_client.get_description.call_args_list
+        call
+        for call in mock_llm_client.get_description.call_args_list
         if "Auditor" in call[0][0]
     )
     assert drift_prompt_call is not None
-    assert "Unique ID for the customer" in drift_prompt_call[0][0] # Existing doc
-    assert "Is Unique: False" in drift_prompt_call[0][0] # Conflicting stat
+    assert (
+        "Unique ID for the customer" in drift_prompt_call[0][0]
+    )  # Existing doc
+    assert "Is Unique: False" in drift_prompt_call[0][0]  # Conflicting stat

@@ -383,7 +383,7 @@ def scan_dbt(
             "Error: --update, --check, and --interactive are mutually exclusive. Please choose one."
         )
         raise typer.Exit(code=1)
-    
+
     if drift and not db_profile:
         logger.error("Error: --drift mode requires --db to be specified.")
         raise typer.Exit(code=1)
@@ -397,7 +397,7 @@ def scan_dbt(
         update_yaml=update_yaml,
         check=check,
         interactive=interactive,
-        drift=drift
+        drift=drift,
     ).run()
 
 

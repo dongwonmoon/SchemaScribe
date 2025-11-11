@@ -107,7 +107,7 @@ class DbtYamlWriter:
                     for node_type in [
                         "models",
                         "sources",
-"seeds",
+                        "seeds",
                         "snapshots",
                     ]:
                         for node_config in data.get(node_type, []):
@@ -182,8 +182,14 @@ class DbtYamlWriter:
                     )
 
         elif self.mode in ["check", "drift"] and total_updates_needed:
-             log_msg = "documentation is outdated" if self.mode == "check" else "documentation drift was detected"
-             logger.warning(f"CI CHECK ({self.mode} mode): Changes are needed. {log_msg}.")
+            log_msg = (
+                "documentation is outdated"
+                if self.mode == "check"
+                else "documentation drift was detected"
+            )
+            logger.warning(
+                f"CI CHECK ({self.mode} mode): Changes are needed. {log_msg}."
+            )
         elif not total_updates_needed:
             logger.info("All dbt documentation is up-to-date. No changes made.")
         return total_updates_needed
@@ -220,7 +226,7 @@ class DbtYamlWriter:
         logger.info(f" -> Checking model: '{model_name}' in '{file_path}'")
 
         ai_model_desc = ai_model_data.get("model_description")
-        
+
         if self.mode == "drift":
             pass
         elif ai_model_desc and not node_config.get("description"):
@@ -245,14 +251,16 @@ class DbtYamlWriter:
                 )
                 if ai_column:
                     # In drift mode, check for drift and flag it.
-                    if self.mode == "drift" and column_config.get("description"):
+                    if self.mode == "drift" and column_config.get(
+                        "description"
+                    ):
                         drift_status = ai_column.get("drift_status")
                         if drift_status == "DRIFT":
                             logger.warning(
                                 f"DRIFT DETECTED: Doc for '{model_name}.{column_name}' conflicts with live data."
                             )
-                            file_changed = True # This flags the CI to fail
-                            
+                            file_changed = True  # This flags the CI to fail
+
                     # For other modes, fill in missing AI-generated data.
                     ai_data_dict = ai_column.get("ai_generated", {})
                     for key, ai_value in ai_data_dict.items():

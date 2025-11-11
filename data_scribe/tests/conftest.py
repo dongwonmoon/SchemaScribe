@@ -25,11 +25,13 @@ def mock_llm_client(mocker):
 
     # --- Smart side_effect function ---
     def smart_get_description(prompt: str, max_tokens: int) -> str:
-        if DBT_DRIFT_CHECK_PROMPT.splitlines()[1] in prompt: # Check for drift prompt
+        if (
+            DBT_DRIFT_CHECK_PROMPT.splitlines()[1] in prompt
+        ):  # Check for drift prompt
             # Default response for drift is "MATCH"
             # Tests can override this by re-mocking mock_client.get_description
             return "MATCH"
-        
+
         # Default response for all other prompts
         return "This is an AI-generated description."
 
