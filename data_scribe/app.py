@@ -20,6 +20,7 @@ except:
 
 from data_scribe.core.db_workflow import DbWorkflow
 from data_scribe.core.dbt_workflow import DbtWorkflow
+from data_scribe.core.lineage_workflow import LineageWorkflow
 from data_scribe.core.exceptions import (
     DataScribeError,
     ConnectorError,
@@ -408,6 +409,37 @@ def scan_dbt(
         check=check,
         interactive=interactive,
         drift=drift,
+    ).run()
+    
+@app.command(name="lineage")
+@handle_exceptions
+def generate_lineage(
+    dbt_project_dir: str = typer.Option(
+        ..., "--project-dir", help="The path to the dbt project directory."
+    ),
+    db_profile: str = typer.Option(
+        ...,
+        "--db",
+        help="The database profile to scan for physical Foreign Keys.",
+    ),
+    output_profile: str = typer.Option(
+        ...,
+        "--output",
+        help="The output profile (type 'mermaid') to write the .md file to.",
+    ),
+    config_path: str = typer.Option(
+        "config.yaml", "--config", help="The path to the configuration file."
+    ),
+):
+    """
+    Generates a Global End-to-End lineage graph (Mermaid) by combining
+    physical DB Foreign Keys with logical dbt dependencies (refs/sources).
+    """
+    LineageWorkflow(
+        config_path=config_path,
+        db_profile=db_profile,
+        dbt_project_dir=dbt_project_dir,
+        output_profile=output_profile,
     ).run()
 
 

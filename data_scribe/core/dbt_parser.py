@@ -103,7 +103,18 @@ class DbtManifestParser:
                             "type": col_data.get("data_type", "N/A"),
                         }
                     )
-
+                    
+                depends_on_nodes = node_data.get("depends_on", {}).get("nodes", [])
+                dependencies = []
+                for dep_key in depends_on_nodes:
+                    dep_node = nodes.get(dep_key, {})
+                    dep_type = dep_node.get("resource_type")
+                    if dep_type == "model" or dep_type == "seed":
+                        dependencies.append(dep_node.get("name"))
+                    elif dep_type == "source":
+                        # For sources, get 'source_name.name' (e.g., 'jaffle_shop.customers')
+                        dependencies.append(f"{dep_node.get('source_name')}.{dep_node.get('name')}")
+                    
                 parsed_models.append(
                     {
                         "name": node_data.get("name"),
