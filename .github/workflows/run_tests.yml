@@ -1,4 +1,4 @@
-name: "Data Scribe Tests"
+name: "Schema Scribe Tests"
 
 on:
   push:
@@ -32,7 +32,7 @@ jobs:
 
       - name: "Run Pytest"
         run: |
-          pytest data_scribe/tests/
+          pytest schema_scribe/tests/
         env:
           # Set dummy keys to allow client initialization tests to pass
           # The actual API calls are mocked, so these don't need to be real

@@ -45,7 +45,7 @@ cursor.execute(
     "INSERT INTO users (name, email) VALUES ('천재 사용자', 'genius@example.com')"
 )
 cursor.execute(
-    "INSERT INTO products (name, price) VALUES ('Data Scribe Pro', 99.9)"
+    "INSERT INTO products (name, price) VALUES ('Schema Scribe Pro', 99.9)"
 )
 
 conn.commit()

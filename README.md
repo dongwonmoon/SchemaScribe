@@ -1,18 +1,18 @@
-# ✍️ Data Scribe: AI-Powered Data Documentation
+# ✍️ Schema Scribe: AI-Powered Data Documentation
 
 **Tired of writing data documentation? Let AI do it for you.**
 
-Data Scribe is a CLI tool that scans your databases and dbt projects, uses AI to generate descriptions, and automatically updates your documentation.
+Schema Scribe is a CLI tool that scans your databases and dbt projects, uses AI to generate descriptions, and automatically updates your documentation.
 
 ---
 
 ## ✨ See it in Action
 
-Stop manually updating YAML files or writing Markdown tables. Let `data-scribe` do the work in seconds.
+Stop manually updating YAML files or writing Markdown tables. Let `schema-scribe` do the work in seconds.
 
 | **Magically update dbt `schema.yml`** | **Instantly generate DB catalogs (w/ ERD)** |
 | :---: | :---: |
-| Run `data-scribe dbt --update` and watch AI fill in your missing descriptions, tags, and tests. | Point `data-scribe db` at a database and get a full Markdown catalog, complete with a Mermaid ERD. |
+| Run `schema-scribe dbt --update` and watch AI fill in your missing descriptions, tags, and tests. | Point `schema-scribe db` at a database and get a full Markdown catalog, complete with a Mermaid ERD. |
 | ![dbt Workflow Demo](asset/dbt_demo.gif) | ![Database Scan Demo](asset/markdown_demo.gif) |
 
 ## 🚀 Quick Start (60 Seconds)
@@ -24,20 +24,20 @@ Get your first AI-generated catalog in less than a minute.
 Clone the repo and install dependencies.
 
 ```bash
-git clone https://github.com/dongwonmoon/DataScribe.git
-cd DataScribe
+git clone https://github.com/dongwonmoon/SchemaScribe.git
+cd SchemaScribe
 pip install -r requirements.txt
 ```
 
-*(Note: For specific databases, install optional dependencies: `pip install -e ".[postgres, snowflake]"`)*
-*(Note: To use the web server, also install server dependencies: `pip install "data-scribe[server]"`)*
+*(Note: For specific databases, install optional dependencies: `pip install -e " .[postgres, snowflake]"`)*
+*(Note: To use the web server, also install server dependencies: `pip install "schema-scribe[server]"`)*
 
 ### 2. Initialize
 
 Run the interactive wizard. It will guide you through setting up your database and LLM, automatically creating `config.yaml` and a secure `.env` file for your API keys.
 
 ```bash
-data-scribe init
+schema-scribe init
 ```
 
 ### 3. Run!
@@ -48,22 +48,22 @@ You're all set.
 (Make sure `dbt compile` has been run to create `manifest.json`)
 ```bash
 # See what's missing (CI check)
-data-scribe dbt --project-dir /path/to/your/dbt/project --check
+schema-scribe dbt --project-dir /path/to/your/dbt/project --check
 
 # Let AI fix it
-data-scribe dbt --project-dir /path/to/your/dbt/project --update
+schema-scribe dbt --project-dir /path/to/your/dbt/project --update
 
 # Check for documentation drift against the live database
-data-scribe dbt --project-dir /path/to/your/dbt/project --db your_db_profile --drift
+schema-scribe dbt --project-dir /path/to/your/dbt/project --db your_db_profile --drift
 
 # Generate a global, end-to-end lineage graph
-data-scribe lineage --project-dir /path/to/your/dbt/project --db your_db_profile --output your_mermaid_profile
+schema-scribe lineage --project-dir /path/to/your/dbt/project --db your_db_profile --output your_mermaid_profile
 ```
 
 **For a database:**
 (Assuming you created an output profile named `my_markdown` during `init`)
 ```bash
-data-scribe db --output my_markdown
+schema-scribe db --output my_markdown
 ```
 
 ---
@@ -96,11 +96,11 @@ data-scribe db --output my_markdown
 
 ## Command Reference
 
-### `data-scribe init`
+### `schema-scribe init`
 
 Runs the interactive wizard to create `config.yaml` and `.env` files. This is the recommended first step.
 
-### `data-scribe db`
+### `schema-scribe db`
 
 Scans a live database and generates a catalog.
 
@@ -108,7 +108,7 @@ Scans a live database and generates a catalog.
 -   `--llm TEXT`: (Optional) The LLM profile from `config.yaml` to use. Overrides default.
 -   `--output TEXT`: (Required) The output profile from `config.yaml` to use.
 
-### `data-scribe dbt`
+### `schema-scribe dbt`
 
 Scans a dbt project's `manifest.json` file.
 
@@ -122,7 +122,7 @@ Scans a dbt project's `manifest.json` file.
 
 **Note:** `--update`, `--check`, `--interactive`, and `--drift` flags are mutually exclusive. Choose only one.
 
-### `data-scribe lineage`
+### `schema-scribe lineage`
 
 Generates a global, end-to-end lineage graph for a dbt project.
 
@@ -130,7 +130,7 @@ Generates a global, end-to-end lineage graph for a dbt project.
 -   `--db TEXT`: **(Required)** The database profile to scan for physical Foreign Keys.
 -   `--output TEXT`: **(Required)** The output profile (must be type 'mermaid') to write the `.md` file to.
 
-### `data-scribe serve`
+### `schema-scribe serve`
 
 Launches the FastAPI web server.
 
@@ -141,12 +141,12 @@ Launches the FastAPI web server.
 
 ## 🚀 Web API Server
 
-Data Scribe includes a built-in FastAPI web server that exposes the core workflows via a REST API. This is perfect for programmatic integration or for building a custom web UI.
+Schema Scribe includes a built-in FastAPI web server that exposes the core workflows via a REST API. This is perfect for programmatic integration or for building a custom web UI.
 
 **1. Launch the server:**
-(Make sure you have installed the server dependencies: `pip install "data-scribe[server]"`)
+(Make sure you have installed the server dependencies: `pip install "schema-scribe[server]"`)
 ```bash
-data-scribe serve --host 0.0.0.0 --port 8000
+schema-scribe serve --host 0.0.0.0 --port 8000
 ```
 
 **2. Explore the API:**
@@ -180,9 +180,9 @@ If the documentation is outdated, the API will return a `409 Conflict` status co
 
 Adding a new database, LLM, or writer is easy:
 
-1.  Create a new class in the appropriate directory (e.g., `data_scribe/components/db_connectors`).
+1.  Create a new class in the appropriate directory (e.g., `schema_scribe/components/db_connectors`).
 2.  Implement the base interface (e.g., `BaseConnector`).
-3.  Register your new class in `data_scribe/core/factory.py`.
+3.  Register your new class in `schema_scribe/core/factory.py`.
 
 The `init` command and core logic will automatically pick up your new component.
 

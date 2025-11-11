@@ -1,0 +1,172 @@
+"""
+This module contains shared fixtures for pytest.
+
+Fixtures defined here are accessible to all tests in the 'tests/' directory and its subdirectories.
+This helps in creating a consistent testing setup and reducing code duplication.
+"""
+
+import pytest
+import sqlite3
+import yaml
+from unittest.mock import MagicMock
+from schema_scribe.prompts import DBT_DRIFT_CHECK_PROMPT
+
+
+@pytest.fixture
+def mock_llm_client(mocker):
+    """
+    Mocks the LLM client initialization and returns a mock object.
+
+    This fixture patches the `init_llm` function in both db_workflow and dbt_workflow
+    modules to prevent actual LLM API calls during tests. The mock client's
+    `get_description` method is set to return a predictable, fixed string.
+    """
+    mock_client = MagicMock()
+
+    # --- Smart side_effect function ---
+    def smart_get_description(prompt: str, max_tokens: int) -> str:
+        if (
+            DBT_DRIFT_CHECK_PROMPT.splitlines()[1] in prompt
+        ):  # Check for drift prompt
+            # Default response for drift is "MATCH"
+            # Tests can override this by re-mocking mock_client.get_description
+            return "MATCH"
+
+        # Default response for all other prompts
+        return "This is an AI-generated description."
+
+    mock_client.get_description.side_effect = smart_get_description
+
+    # Patch the init_llm function where it's used in the workflows
+    mocker.patch(
+        "schema_scribe.core.db_workflow.init_llm", return_value=mock_client
+    )
+    mocker.patch(
+        "schema_scribe.core.dbt_workflow.init_llm", return_value=mock_client
+    )
+
+    return mock_client
+
+
+@pytest.fixture
+def test_config(tmp_path):
+    """
+    Creates a temporary, isolated config.yaml for testing.
+
+    This fixture generates a config file in a temporary directory provided by pytest's
+    `tmp_path` fixture. This ensures that tests do not interfere with each other or
+    with a real user config file.
+
+    Returns:
+        A function that can be called to get a config path with custom content.
+    """
+
+    def _create_config(db_path, output_md_path=None, output_json_path=None):
+        config_path = tmp_path / "config.yml"
+        config = {
+            "default": {"db": "test_db", "llm": "test_llm"},
+            "db_connections": {
+                "test_db": {"type": "sqlite", "path": str(db_path)},
+                "duckdb_test": {
+                    "type": "duckdb",
+                    "path": "s3://bucket/some.csv",
+                },
+            },
+            "llm_providers": {
+                "test_llm": {"provider": "openai", "model": "gpt-4"},
+            },
+            "output_profiles": {},
+        }
+        if output_md_path:
+            config["output_profiles"]["test_markdown_output"] = {
+                "type": "markdown",
+                "output_filename": str(output_md_path),
+            }
+        if output_json_path:
+            config["output_profiles"]["test_json_output"] = {
+                "type": "json",
+                "output_filename": str(output_json_path),
+            }
+
+        with open(config_path, "w") as f:
+            yaml.dump(config, f)
+        return str(config_path)
+
+    return _create_config
+
+
+@pytest.fixture
+def sqlite_db(tmp_path):
+    """
+    Sets up a temporary, EMPTY SQLite database with schema for integration tests.
+    ...
+    (No changes to this existing fixture)
+    ...
+    """
+    db_path = tmp_path / "test_database.db"
+    conn = sqlite3.connect(db_path)
+    cursor = conn.cursor()
+
+    # Create tables
+    cursor.execute(
+        "CREATE TABLE users (id INTEGER PRIMARY KEY, name TEXT, email TEXT)"
+    )
+    cursor.execute(
+        "CREATE TABLE products (id INTEGER PRIMARY KEY, name TEXT, price REAL)"
+    )
+    cursor.execute(
+        "CREATE TABLE orders (id INTEGER PRIMARY KEY, user_id INTEGER, product_id INTEGER, "
+        "FOREIGN KEY(user_id) REFERENCES users(id), "
+        "FOREIGN KEY(product_id) REFERENCES products(id))"
+    )
+
+    # Create a view
+    cursor.execute(
+        """
+        CREATE VIEW user_orders AS
+        SELECT u.name as user_name, p.name as product_name
+        FROM orders o
+        JOIN users u ON o.user_id = u.id
+        JOIN products p ON o.product_id = p.id
+        """
+    )
+
+    conn.commit()
+    conn.close()
+
+    return str(db_path)
+
+
+@pytest.fixture
+def sqlite_db_with_data(tmp_path):
+    """
+    Sets up a temporary SQLite database WITH SAMPLE DATA for profiling tests.
+    This provides predictable stats for nulls, uniqueness, and cardinality.
+    """
+    db_path = tmp_path / "test_data_database.db"
+    conn = sqlite3.connect(db_path)
+    cursor = conn.cursor()
+
+    # Create table
+    cursor.execute(
+        "CREATE TABLE profile_test (id INTEGER PRIMARY KEY, "
+        "unique_col TEXT, "
+        "nullable_col TEXT, "
+        "category_col TEXT)"
+    )
+
+    # Insert predictable data
+    # Total 5 rows
+    data = [
+        (1, "A", "foo", "cat_1"),
+        (2, "B", "bar", "cat_1"),
+        (3, "C", "foo", "cat_2"),
+        (4, "D", None, "cat_2"),
+        (5, "E", None, "cat_2"),
+    ]
+    cursor.executemany("INSERT INTO profile_test VALUES (?, ?, ?, ?)", data)
+
+    conn.commit()
+    conn.close()
+
+    return str(db_path)

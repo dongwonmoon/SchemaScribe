@@ -3,8 +3,8 @@ requires = ["setuptools>=61.0"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "data-scribe"
-version = "0.1.1"
+name = "schema-scribe"
+version = "0.2.0"
 description = "AI-powered data documentation generator for databases and dbt projects."
 readme = "README.md"
 authors = [
@@ -65,8 +65,8 @@ all = [
 ]
 
 [tool.setuptools.packages.find]
-include = ["data_scribe*"]
+include = ["schema_scribe*"]
 exclude = ["jaffle_shop_mini*", "tests*"]
 
 [project.scripts]
-data-scribe = "data_scribe.main:app"
+schema-scribe = "schema_scribe.main:app"
