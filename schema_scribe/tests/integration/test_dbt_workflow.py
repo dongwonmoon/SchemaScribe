@@ -14,8 +14,9 @@ from ruamel.yaml import YAML
 import typer
 from unittest.mock import MagicMock, patch
 
-from schema_scribe.core.dbt_workflow import DbtWorkflow
+from schema_scribe.workflows.dbt_workflow import DbtWorkflow
 from schema_scribe.core.exceptions import CIError
+from schema_scribe.core.interfaces import BaseConnector, BaseLLMClient, BaseWriter
 
 # A minimal manifest.json structure needed for the tests
 MINIMAL_MANIFEST = {
@@ -65,7 +66,6 @@ def mock_parsed_models_list() -> List[Dict[str, Any]]:
     This simulates the *output* of the `DbtManifestParser.models` property,
     transforming the raw manifest dictionary into the list of dictionaries
     that the catalog generator expects. This makes the test more robust by
-
     decoupling it from the parser's internal logic.
     """
     node_data = DRIFT_MANIFEST["nodes"]["model.jaffle_shop.customers"]
@@ -123,56 +123,41 @@ def dbt_project(tmp_path: Path):
 
 
 @pytest.fixture
-def config_for_dbt(tmp_path: Path):
+def mock_llm_client():
     """
-    Creates a minimal config file for dbt tests.
-
-    Includes a dummy 'db_connections' section, which is required for the
-    `--drift` mode to successfully load its configuration, even though the
-    connector itself is mocked.
+    Provides a mock LLMClient that returns a predictable description.
     """
-    config_path = tmp_path / "config.yml"
-    config_content = """
-default:
-  llm: test_llm
-  
-llm_providers:
-  test_llm:
-    provider: "openai"
-    model: "gpt-test"
-
-db_connections:
-  test_db:
-    type: "postgres" # Type doesn't matter, it will be mocked
-    user: "test"
-"""
-    config_path.write_text(config_content)
-    return str(config_path)
+    mock_client = MagicMock(spec=BaseLLMClient)
+    mock_client.llm_profile_name = "test_llm"
+    mock_client.get_description.return_value = "This is an AI-generated description."
+    return mock_client
 
 
 @pytest.fixture
-def mock_db_connector(mocker):
+def mock_db_connector():
     """
-    Mocks the get_db_connector factory function in the dbt_workflow module.
-
-    This prevents a real database connection and allows tests to control the
-    output of `get_column_profile` to simulate different data scenarios.
+    Provides a mock DbConnector.
     """
-    mock_connector = MagicMock()
-    # Configure the mock connector to return predictable profile stats
+    mock_connector = MagicMock(spec=BaseConnector)
+    mock_connector.db_profile_name = "test_db"
     mock_connector.get_column_profile.return_value = {
         "total_count": 100,
         "null_ratio": 0.0,
         "distinct_count": 100,
-        "is_unique": True,  # This matches "Unique ID"
+        "is_unique": True,
     }
-
-    # Patch the factory function
-    mocker.patch(
-        "schema_scribe.core.dbt_workflow.get_db_connector",
-        return_value=mock_connector,
-    )
+    mock_connector.close.return_value = None
     return mock_connector
+
+
+@pytest.fixture
+def mock_writer():
+    """
+    Provides a mock Writer.
+    """
+    mock_writer_instance = MagicMock(spec=BaseWriter)
+    mock_writer_instance.write.return_value = None
+    return mock_writer_instance
 
 
 @pytest.fixture
@@ -214,19 +199,46 @@ def dbt_project_with_drift_docs(tmp_path: Path):
     return str(project_dir)
 
 
-def test_dbt_workflow_update(dbt_project, config_for_dbt, mock_llm_client):
+@patch("schema_scribe.services.dbt_catalog_generator.DbtManifestParser")
+def test_dbt_workflow_update(
+    mock_parser_constructor,
+    dbt_project,
+    mock_llm_client,
+    mock_db_connector,
+    mock_writer,
+):
     """Tests the dbt workflow with the --update flag."""
+    # Arrange
+    mock_parser_instance = MagicMock()
+    mock_parser_instance.models = [
+        {
+            "name": "customers",
+            "unique_id": "model.jaffle_shop.customers",
+            "description": "",
+            "raw_sql": "select 1",
+            "columns": [
+                {"name": "customer_id", "description": "", "type": "INTEGER"},
+                {"name": "first_name", "description": "", "type": "TEXT"},
+            ],
+            "path": "customers.sql",
+            "original_file_path": os.path.join(dbt_project, "models", "customers.sql"),
+        }
+    ]
+    mock_parser_constructor.return_value = mock_parser_instance
+
     # Act
     workflow = DbtWorkflow(
+        llm_client=mock_llm_client,
+        db_connector=mock_db_connector,
+        writer=mock_writer,
         dbt_project_dir=dbt_project,
-        llm_profile="test_llm",
-        db_profile=None,
-        config_path=config_for_dbt,
-        output_profile=None,
         update_yaml=True,
         check=False,
         interactive=False,
         drift=False,
+        db_profile_name=None,
+        output_profile_name=None,
+        writer_params={},
     )
     workflow.run()
 
@@ -248,53 +260,106 @@ def test_dbt_workflow_update(dbt_project, config_for_dbt, mock_llm_client):
     assert mock_llm_client.get_description.call_count > 0
 
 
-def test_dbt_workflow_check_fails(dbt_project, config_for_dbt, mock_llm_client):
+@patch("schema_scribe.services.dbt_catalog_generator.DbtManifestParser")
+def test_dbt_workflow_check_fails(
+    mock_parser_constructor,
+    dbt_project,
+    mock_llm_client,
+    mock_db_connector,
+    mock_writer,
+):
     """Tests the --check flag when documentation is missing and expects failure."""
+    # Arrange
+    mock_parser_instance = MagicMock()
+    mock_parser_instance.models = [
+        {
+            "name": "customers",
+            "unique_id": "model.jaffle_shop.customers",
+            "description": "",
+            "raw_sql": "select 1",
+            "columns": [
+                {"name": "customer_id", "description": "", "type": "INTEGER"},
+                {"name": "first_name", "description": "", "type": "TEXT"},
+            ],
+            "path": "customers.sql",
+            "original_file_path": os.path.join(dbt_project, "models", "customers.sql"),
+        }
+    ]
+    mock_parser_constructor.return_value = mock_parser_instance
+
     # Act & Assert
     workflow = DbtWorkflow(
+        llm_client=mock_llm_client,
+        db_connector=mock_db_connector,
+        writer=mock_writer,
         dbt_project_dir=dbt_project,
-        llm_profile="test_llm",
-        db_profile=None,
-        config_path=config_for_dbt,
-        output_profile=None,
         update_yaml=False,
         check=True,
         interactive=False,
         drift=False,
+        db_profile_name=None,
+        output_profile_name=None,
+        writer_params={},
     )
     with pytest.raises(CIError) as e:
         workflow.run()
 
 
+@patch("schema_scribe.services.dbt_catalog_generator.DbtManifestParser")
 def test_dbt_workflow_check_succeeds(
-    dbt_project, config_for_dbt, mock_llm_client
+    mock_parser_constructor,
+    dbt_project,
+    mock_llm_client,
+    mock_db_connector,
+    mock_writer,
 ):
     """Tests the --check flag when documentation is already up-to-date."""
     # Arrange: First, update the YAML to be compliant.
+    mock_parser_instance = MagicMock()
+    mock_parser_instance.models = [
+        {
+            "name": "customers",
+            "unique_id": "model.jaffle_shop.customers",
+            "description": "",
+            "raw_sql": "select 1",
+            "columns": [
+                {"name": "customer_id", "description": "", "type": "INTEGER"},
+                {"name": "first_name", "description": "", "type": "TEXT"},
+            ],
+            "path": "customers.sql",
+            "original_file_path": os.path.join(dbt_project, "models", "customers.sql"),
+        }
+    ]
+    mock_parser_constructor.return_value = mock_parser_instance
+
     update_workflow = DbtWorkflow(
+        llm_client=mock_llm_client,
+        db_connector=mock_db_connector,
+        writer=mock_writer,
         dbt_project_dir=dbt_project,
-        llm_profile="test_llm",
-        db_profile=None,
-        config_path=config_for_dbt,
-        output_profile=None,
         update_yaml=True,
         check=False,
         interactive=False,
         drift=False,
+        db_profile_name=None,
+        output_profile_name=None,
+        writer_params={},
     )
     update_workflow.run()
 
     # Act & Assert: Now, run the check and expect it to pass.
     check_workflow = DbtWorkflow(
+        llm_client=mock_llm_client,
+        db_connector=mock_db_connector,
+        writer=mock_writer,
         dbt_project_dir=dbt_project,
-        llm_profile="test_llm",
-        db_profile=None,
-        config_path=config_for_dbt,
-        output_profile=None,
         update_yaml=False,
         check=True,
         interactive=False,
         drift=False,
+        db_profile_name=None,
+        output_profile_name=None,
+        writer_params={},
     )
 
     # This should run without raising an exception
@@ -306,15 +371,13 @@ def test_dbt_workflow_check_succeeds(
         )
 
 
-@patch(
-    "schema_scribe.core.dbt_catalog_generator.DbtManifestParser",
-)
+@patch("schema_scribe.services.dbt_catalog_generator.DbtManifestParser")
 def test_dbt_workflow_drift_mode_no_drift(
     mock_parser_constructor,
     dbt_project_with_drift_docs,
-    config_for_dbt,
     mock_llm_client,
     mock_db_connector,
+    mock_writer,
     mock_parsed_models_list,
 ):
     """
@@ -337,20 +400,24 @@ def test_dbt_workflow_drift_mode_no_drift(
 
     # 2. Act
     workflow = DbtWorkflow(
+        llm_client=mock_llm_client,
+        db_connector=mock_db_connector,
+        writer=mock_writer,
         dbt_project_dir=dbt_project_with_drift_docs,
-        db_profile="test_db",  # Required for drift
-        llm_profile="test_llm",
-        config_path=config_for_dbt,
-        output_profile=None,
         update_yaml=False,
         check=False,
         interactive=False,
         drift=True,  # <--- Enable drift mode
+        db_profile_name="test_db",  # Required for drift
+        output_profile_name=None,
+        writer_params={},
     )
 
     # 3. Assert
     try:
         workflow.run()
+    except CIError as e:
+        pytest.fail(f"--drift mode failed unexpectedly with CIError: {e}")
     except typer.Exit as e:
         pytest.fail(
             f"--drift mode failed unexpectedly with exit code {e.exit_code}"
@@ -369,15 +436,13 @@ def test_dbt_workflow_drift_mode_no_drift(
     assert "Is Unique: True" in drift_prompt_call[0][0]  # Profile stat
 
 
-@patch(
-    "schema_scribe.core.dbt_catalog_generator.DbtManifestParser",
-)
+@patch("schema_scribe.services.dbt_catalog_generator.DbtManifestParser")
 def test_dbt_workflow_drift_mode_drift_detected(
     mock_parser_constructor,
     dbt_project_with_drift_docs,
-    config_for_dbt,
     mock_llm_client,
     mock_db_connector,
+    mock_writer,
     mock_parsed_models_list,
 ):
     """
@@ -409,15 +474,17 @@ def test_dbt_workflow_drift_mode_drift_detected(
 
     # 2. Act
     workflow = DbtWorkflow(
+        llm_client=mock_llm_client,
+        db_connector=mock_db_connector,
+        writer=mock_writer,
         dbt_project_dir=dbt_project_with_drift_docs,
-        db_profile="test_db",
-        llm_profile="test_llm",
-        config_path=config_for_dbt,
-        output_profile=None,
         update_yaml=False,
         check=False,
         interactive=False,
         drift=True,
+        db_profile_name="test_db",
+        output_profile_name=None,
+        writer_params={},
     )
 
     # 3. Assert

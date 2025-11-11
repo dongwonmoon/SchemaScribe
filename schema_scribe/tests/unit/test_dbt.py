@@ -10,7 +10,7 @@ import pytest
 import json
 from pathlib import Path
 
-from schema_scribe.core.dbt_parser import DbtManifestParser
+from schema_scribe.services.dbt_parser import DbtManifestParser
 from schema_scribe.core.exceptions import DbtParseError
 
 # A minimal, valid manifest.json for successful parsing tests

@@ -4,39 +4,15 @@ Integration test for the 'lineage' command workflow.
 
 import pytest
 from unittest.mock import patch, MagicMock
-from ruamel.yaml import YAML
 
 # Import the class we are testing
-from schema_scribe.core.lineage_workflow import LineageWorkflow
+from schema_scribe.workflows.lineage_workflow import LineageWorkflow
+from schema_scribe.core.interfaces import BaseConnector, BaseWriter
 
 
-@pytest.fixture
-def lineage_config(tmp_path):
-    """
-    Creates a minimal config.yaml in a temporary path for lineage tests.
-    """
-    config_path = tmp_path / "config.yml"
-    config_content = """
-db_connections:
-  test_db:
-    type: "postgres" # Type doesn't matter, get_db_connector will be mocked
-output_profiles:
-  test_output:
-    type: "mermaid"
-    output_filename: "lineage.md"
-"""
-    config_path.write_text(config_content)
-    return str(config_path)
-
-
-@patch("schema_scribe.core.lineage_workflow.get_writer")
-@patch("schema_scribe.core.lineage_workflow.DbtManifestParser")
-@patch("schema_scribe.core.lineage_workflow.get_db_connector")
+@patch("schema_scribe.workflows.lineage_workflow.DbtManifestParser")
 def test_lineage_workflow_e2e(
-    mock_get_connector: MagicMock,
     mock_parser_constructor: MagicMock,
-    mock_get_writer: MagicMock,
-    lineage_config: str,
     tmp_path: str,
 ):
     """
@@ -51,8 +27,8 @@ def test_lineage_workflow_e2e(
     # 1. ARRANGE
 
     # --- Mock DB Connector (Physical Lineage) ---
-    mock_db = MagicMock()
-    mock_db.get_foreign_keys.return_value = [
+    mock_db_connector = MagicMock(spec=BaseConnector)
+    mock_db_connector.get_foreign_keys.return_value = [
         {
             "source_table": "stg_orders",  # This is also a dbt model
             "source_column": "order_id",
@@ -60,7 +36,8 @@ def test_lineage_workflow_e2e(
             "target_column": "id",
         }
     ]
-    mock_get_connector.return_value = mock_db
+    mock_db_connector.db_profile_name = "test_db" # Add this for logging
+    mock_db_connector.close.return_value = None
 
     # --- Mock dbt Parser (Logical Lineage) ---
     mock_dbt_models = [
@@ -85,43 +62,49 @@ def test_lineage_workflow_e2e(
     mock_parser_constructor.return_value = mock_parser_instance
 
     # --- Mock Writer ---
-    mock_writer = MagicMock()
-    mock_get_writer.return_value = mock_writer
+    mock_writer = MagicMock(spec=BaseWriter)
+    mock_writer.write.return_value = None
 
     dummy_dbt_dir = str(tmp_path / "dbt_project")
+    output_filename = str(tmp_path / "lineage.md")
+    writer_params = {"output_filename": output_filename}
 
     # 2. ACT
     workflow = LineageWorkflow(
-        config_path=lineage_config,
-        db_profile="test_db",
+        db_connector=mock_db_connector,
+        writer=mock_writer,
         dbt_project_dir=dummy_dbt_dir,
-        output_profile="test_output",
+        db_profile_name="test_db",
+        output_profile_name="test_output",
+        writer_params=writer_params,
     )
     workflow.run()
 
     # 3. ASSERT
 
     # Assert components were called correctly
-    mock_get_connector.assert_called_once()
-    mock_db.get_foreign_keys.assert_called_once()
+    mock_db_connector.get_foreign_keys.assert_called_once()
     mock_parser_constructor.assert_called_once_with(dummy_dbt_dir)
-    mock_get_writer.assert_called_once_with("mermaid")
     mock_writer.write.assert_called_once()
+    mock_db_connector.close.assert_called_once()
 
     # Assert the generated graph is correct
     # Get the data passed to the writer's 'write' method
-    captured_data = mock_writer.write.call_args[0][0]
-    assert "mermaid_graph" in captured_data
+    captured_catalog_data = mock_writer.write.call_args[0][0]
+    captured_writer_params = mock_writer.write.call_args[1]
 
-    mermaid_graph = captured_data["mermaid_graph"]
+    assert "mermaid_graph" in captured_catalog_data
+    assert captured_writer_params == writer_params
+
+    mermaid_graph = captured_catalog_data["mermaid_graph"]
 
     # Check for the graph type
     assert "graph TD;" in mermaid_graph
 
     # Check for all nodes with correct styling
-    # DB Table (parentheses)
+    # DB Table (rounded box)
     assert '    raw_orders[("raw_orders")]' in mermaid_graph
-    # dbt Sources (double parentheses)
+    # dbt Sources (stadium shape)
     assert (
         '    jaffle_shop.raw_orders(("jaffle_shop.raw_orders"))'
         in mermaid_graph
@@ -130,7 +113,7 @@ def test_lineage_workflow_e2e(
         '    jaffle_shop.raw_customers(("jaffle_shop.raw_customers"))'
         in mermaid_graph
     )
-    # dbt Models (box)
+    # dbt Models (rectangular box)
     assert '    stg_orders["stg_orders"]' in mermaid_graph
     assert '    stg_customers["stg_customers"]' in mermaid_graph
     assert '    fct_orders["fct_orders"]' in mermaid_graph
