@@ -3,23 +3,24 @@ This module defines the main FastAPI application for the Schema Scribe server.
 
 Design Rationale:
 The server provides a RESTful API wrapper around the core workflows, enabling
-programmatic or UI-driven execution. It mirrors the dependency injection pattern
-used by the CLI (`app.py`), using the `ConfigManager` to build and inject
-components into the workflows. This ensures consistent behavior between the
-CLI and the server. Error handling is managed at the API boundary, translating
-internal application errors into appropriate HTTP status codes.
+programmatic or UI-driven execution. It mirrors the dependency injection (DI)
+pattern used by the CLI (`app.py`), using the `ConfigManager` to build and
+inject components into the workflows. This ensures consistent behavior
+between the CLI and the server.
 """
 
 import os
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Query
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
-from typing import List, Optional
+from typing import List, Optional, Any
 
+# Adheres to Phase 1 Refactoring: Import from new locations
 from schema_scribe.config.manager import ConfigManager
 from schema_scribe.workflows.db_workflow import DbWorkflow
 from schema_scribe.workflows.dbt_workflow import DbtWorkflow
+from schema_scribe.workflows.lineage_workflow import LineageWorkflow
 from schema_scribe.core.exceptions import DataScribeError, CIError
 from schema_scribe.utils.logger import get_logger
 
@@ -48,13 +49,13 @@ class RunDbWorkflowRequest(BaseModel):
 
     db_profile: str
     llm_profile: str
-    output_profile: str
+    output_profile: str  # Note: Will be required for this endpoint
 
 
 class RunDbtWorkflowRequest(BaseModel):
     """
     Defines the request body for triggering the 'dbt' workflow.
-    The mode flags (`update_yaml`, `check`, `drift`) are mutually exclusive.
+    Mode flags are mutually exclusive.
     """
 
     dbt_project_dir: str
@@ -73,14 +74,8 @@ class RunDbtWorkflowRequest(BaseModel):
 @app.get("/api/profiles", response_model=ProfileInfo)
 def get_profiles():
     """
-    A discovery endpoint that returns available profiles from `config.yaml`.
-
-    This is useful for UIs that need to populate dropdown menus with available
-    connection, LLM, and output options.
-
-    Raises:
-        HTTPException(404): If `config.yaml` is not found.
-        HTTPException(500): For other configuration loading errors.
+    Discovery endpoint that returns available profiles from `config.yaml`.
+    Useful for populating UI dropdowns.
     """
     try:
         # Use ConfigManager to safely load and access the config
@@ -107,15 +102,9 @@ def run_db_workflow(request: RunDbWorkflowRequest):
     """
     Runs the 'db' documentation workflow.
 
-    This endpoint triggers a synchronous run of the `DbWorkflow`. It uses the
-    `ConfigManager` to build the necessary components based on the profile names
-    provided in the request, then injects them into the workflow.
-
-    Args:
-        request: A `RunDbWorkflowRequest` with the db, llm, and output profiles.
-
-    Returns:
-        A success message if the workflow completes.
+    This endpoint uses the `ConfigManager` to build and inject
+    components (DB, LLM, Writer) into the DbWorkflow based on
+    the profile names provided in the request.
     """
     try:
         logger.info(
@@ -161,21 +150,11 @@ def run_dbt_workflow(request: RunDbtWorkflowRequest):
     """
     Runs the 'dbt' documentation workflow with various modes.
 
-    This endpoint triggers a synchronous run of the `DbtWorkflow`, using the
-    `ConfigManager` to build and inject dependencies.
-
-    - **CI Failures**: If `check` or `drift` mode is used and a failure is
-      detected, this endpoint returns an **HTTP 409 Conflict** status, which
-      can be used to fail a CI job.
-    - **Interactive Mode**: The `interactive` mode is not supported via the API
-      and is always disabled.
-
-    Args:
-        request: A `RunDbtWorkflowRequest` defining the project and execution mode.
-
-    Returns:
-        A success message if the workflow completes without a CI failure.
+    Uses `ConfigManager` to build and inject dependencies.
+    - CI Failures (check/drift) return HTTP 409 Conflict.
+    - Interactive mode is disabled via API.
     """
+    db_connector = None  # Ensure db_connector is defined in the outer scope
     try:
         logger.info(
             f"Received request to run 'dbt' workflow for dir: {request.dbt_project_dir}"
@@ -192,10 +171,13 @@ def run_dbt_workflow(request: RunDbtWorkflowRequest):
         cfg_manager = ConfigManager("config.yaml")
 
         # Build components
-        llm_client, _ = cfg_manager.get_llm_client(request.llm_profile)
-        db_connector = None
+        llm_client, llm_name = cfg_manager.get_llm_client(request.llm_profile)
+        db_name = None
         if request.db_profile:
-            db_connector, _ = cfg_manager.get_db_connector(request.db_profile)
+            db_connector, db_name = cfg_manager.get_db_connector(
+                request.db_profile
+            )
+
         writer, out_name, writer_params = cfg_manager.get_writer(
             request.output_profile
         )
@@ -211,39 +193,99 @@ def run_dbt_workflow(request: RunDbtWorkflowRequest):
             db_connector=db_connector,
             writer=writer,
             writer_params=writer_params,
+            db_profile_name=db_name,  # Pass name for logging
             output_profile_name=out_name,
         )
-        workflow.run()
+        workflow.run()  # This will close the db_connector internally
         return {
             "status": "success",
             "message": f"dbt workflow completed for {request.dbt_project_dir}.",
         }
     except CIError as e:
         logger.warning(f"CI check failed during API call: {e}")
+        # Manually close connector on CIError, as workflow.run() was interrupted
+        if db_connector:
+            db_connector.close()
         raise HTTPException(status_code=409, detail=str(e))
     except DataScribeError as e:
         logger.error(
             f"Schema Scribe error running workflow: {e}", exc_info=True
         )
+        if db_connector:
+            db_connector.close()
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
         logger.error(f"Unexpected error running workflow: {e}", exc_info=True)
+        if db_connector:
+            db_connector.close()
         raise HTTPException(
             status_code=500, detail=f"An unexpected error occurred: {e}"
         )
 
 
+@app.get("/api/lineage/graph")
+def get_global_lineage_graph(
+    db_profile: str = Query(
+        ..., description="DB profile to scan for physical FKs."
+    ),
+    dbt_project_dir: str = Query(
+        ..., description="Path to the dbt project directory."
+    ),
+) -> Any:
+    """
+    Returns a JSON object of the global lineage graph (nodes and edges)
+    for use in interactive UIs (e.g., react-flow).
+
+    Combines physical (DB FKs) and logical (dbt) lineage.
+    """
+    db_connector = None
+    try:
+        # Adheres to Phase 1 DI pattern
+        cfg_manager = ConfigManager("config.yaml")
+
+        # 1. Build dependencies using ConfigManager
+        db_connector, db_name = cfg_manager.get_db_connector(db_profile)
+
+        # 2. Instantiate workflow, injecting dependencies (no writer)
+        workflow = LineageWorkflow(
+            db_connector=db_connector,
+            writer=None,  # The API's goal is to return data, not save files
+            dbt_project_dir=dbt_project_dir,
+            db_profile_name=db_name,
+            output_profile_name=None,
+            writer_params={},
+        )
+
+        # 3. Call generate_catalog() instead of run()
+        catalog_data = workflow.generate_catalog()
+
+        # 4. Return the 'graph_json' payload for the UI
+        return catalog_data["graph_json"]
+
+    except DataScribeError as e:
+        logger.error(
+            f"Schema Scribe error generating lineage: {e}", exc_info=True
+        )
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        logger.error(f"Unexpected error generating lineage: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=500, detail=f"An unexpected error occurred: {e}"
+        )
+    finally:
+        # 5. Manually close resources
+        # Since we didn't call workflow.run(), we must close the connection
+        if db_connector:
+            logger.info(f"Closing DB connection for {db_profile}...")
+            db_connector.close()
+
+
 # --- Static File Serving ---
 
-# Get the directory where this server file is located. This is necessary
-# to reliably find the 'static' folder regardless of where the application
-# is run from.
 SERVER_DIR = os.path.dirname(os.path.abspath(__file__))
 STATIC_DIR = os.path.join(SERVER_DIR, "static")
 
 
-# Serve the main index.html file from the root path. This allows the app
-# to be served at the base URL (e.g., http://localhost:8000).
 @app.get("/", include_in_schema=False)
 async def read_index():
     """Serves the main index.html file for the frontend."""
@@ -255,8 +297,4 @@ async def read_index():
     return FileResponse(index_path)
 
 
-# Mount the 'static' directory to serve all other static files (CSS, JS, etc.).
-# This must come after the root endpoint to ensure the root is served correctly.
-# The `html=True` argument enables it to serve 'index.html' for sub-paths,
-# which is useful for single-page applications (SPAs).
 app.mount("/", StaticFiles(directory=STATIC_DIR, html=True), name="static")

@@ -1,21 +1,15 @@
 """
 This module defines the core business logic for generating a unified global
-lineage graph (Mermaid) by combining information from both dbt projects
+lineage graph by combining information from both dbt projects
 and database foreign keys (FKs).
 
 Design Rationale:
-Data lineage is often fragmented across different systems (e.g., explicit
-foreign keys in a database, implicit dependencies in dbt models). This module
-aims to consolidate these disparate sources into a single, coherent view.
-By generating a Mermaid graph, it provides a human-readable and easily
-renderable visualization of data flow, which is crucial for understanding
-data transformations and impacts. The generator prioritizes dbt model
-lineage over generic database table lineage to reflect the higher-level
-business logic often encapsulated in dbt.
+Data lineage is often fragmented. This module consolidates physical (DB)
+and logical (dbt) lineage into a single, coherent view, available as
+both a Mermaid string (for static files) and a JSON object (for interactive UIs).
 """
 
-from typing import List, Dict, Any, Set
-
+from typing import List, Dict, Any
 from schema_scribe.utils.logger import get_logger
 
 logger = get_logger(__name__)
@@ -23,12 +17,8 @@ logger = get_logger(__name__)
 
 class GlobalLineageGenerator:
     """
-    Merges physical (FK) and logical (dbt) lineage to create a single,
-    unified Mermaid graph string.
-
-    This class processes foreign key relationships from a database and
-    dependencies from dbt models, resolving conflicts and styling nodes
-    appropriately to produce a comprehensive data lineage visualization.
+    Merges physical (FK) and logical (dbt) lineage to create a unified
+    graph structure, accessible as a Mermaid string or a JSON object.
     """
 
     def __init__(
@@ -38,31 +28,21 @@ class GlobalLineageGenerator:
         Initializes the GlobalLineageGenerator.
 
         Args:
-            db_fks: A list of foreign key relationships returned from a BaseConnector.
-                    Each dictionary is expected to contain 'source_table',
-                    'target_table', 'source_column', 'target_column'.
-            dbt_models: A list of dbt models parsed from a DbtManifestParser.
-                        Each dictionary is expected to contain 'name' and
-                        'dependencies'.
+            db_fks: A list of FK relationships from a BaseConnector.
+            dbt_models: A list of parsed dbt models from DbtManifestParser.
         """
         self.db_fks = db_fks
         self.dbt_models = dbt_models
-        self.nodes: Dict[str, str] = {}  # Stores node names and their styles
-        self.edges: Set[str] = (
-            set()
-        )  # Stores unique edges to prevent duplicates
+
+        # Internal storage for processed nodes and edges
+        # { 'node_id': { 'id': ..., 'label': ..., 'style': ... } }
+        self.nodes: Dict[str, Dict[str, Any]] = {}
+        # [ { 'id': ..., 'source': ..., 'target': ..., 'label': ... } ]
+        self.edges: List[Dict[str, Any]] = []
+        self._processed = False  # Flag to ensure processing runs only once
 
     def _get_style_priority(self, style: str) -> int:
-        """
-        Assigns a priority to node styles. Higher numbers indicate higher priority.
-
-        Design Rationale:
-        This priority system ensures that when a node (e.g., a table) appears
-        in multiple contexts (e.g., as a raw DB table and as a dbt model),
-        its visual representation reflects the most significant role. Dbt models
-        are given the highest priority as they often represent transformed,
-        business-logic-driven entities.
-        """
+        """Assigns priority to node styles. Higher numbers win."""
         if style == "box":
             return 3  # dbt model (highest priority)
         if style == "source":
@@ -73,54 +53,48 @@ class GlobalLineageGenerator:
 
     def _add_node(self, name: str, style: str):
         """
-        Adds a node to the graph or updates its style based on priority.
-
-        If a node with the given `name` already exists, its style is updated
-        only if the `new_style` has a higher priority than the `current_style`.
-        This ensures that, for instance, a dbt model style always overrides
-        a generic database table style for the same entity.
+        Adds a node or updates its style based on priority.
+        Ensures a dbt model style ('box') always overrides a
+        generic DB table style ('db').
         """
-        current_style = self.nodes.get(name)
+        current_style_data = self.nodes.get(name)
         current_priority = (
-            self._get_style_priority(current_style) if current_style else -1
+            self._get_style_priority(current_style_data["style"])
+            if current_style_data
+            else -1
         )
         new_priority = self._get_style_priority(style)
 
         if new_priority > current_priority:
-            self.nodes[name] = style
+            self.nodes[name] = {"id": name, "label": name, "style": style}
 
     def _add_edge(self, from_node: str, to_node: str, label: str = ""):
-        """
-        Adds a unique edge to the graph.
-
-        Edges are stored in a set to automatically handle duplicates, ensuring
-        that the final Mermaid graph does not contain redundant connections.
-        """
+        """Adds a unique edge dictionary to the graph."""
+        edge_id = f"{from_node}-{to_node}"
         if label:
-            self.edges.add(f'    {from_node} -- "{label}" --> {to_node}')
-        else:
-            self.edges.add(f"    {from_node} --> {to_node}")
+            edge_id = f"{edge_id}-{label}"
 
-    def generate_graph(self) -> str:
+        new_edge = {
+            "id": edge_id,
+            "source": from_node,
+            "target": to_node,
+            "label": label,
+        }
+        # Add edge if not already present
+        if new_edge not in self.edges:
+            self.edges.append(new_edge)
+
+    def _process_lineage(self):
         """
-        Generates a complete Mermaid.js graph string by merging physical and
-        logical lineage information.
-
-        The process involves:
-        1.  Processing physical lineage from database foreign keys, adding
-            nodes and edges with 'db' style.
-        2.  Processing logical lineage from dbt model dependencies, adding
-            nodes and edges with 'box' (for models) or 'source' (for sources)
-            styles, respecting style priorities.
-        3.  Combining all collected nodes and edges into a Mermaid 'graph TD'
-            syntax string, applying appropriate Mermaid node shapes based on style.
-
-        Returns:
-            A string representing the Mermaid.js graph definition.
+        Internal method to process all lineage data.
+        Runs only once.
         """
-        logger.info("Generating global lineage graph...")
+        if self._processed:
+            return
 
-        # 1. Process physical lineage (DB Foreign Keys)
+        logger.info("Processing physical and logical lineage...")
+
+        # 1. Process Physical Lineage (DB Foreign Keys)
         for fk in self.db_fks:
             from_table = fk["source_table"]
             to_table = fk["target_table"]
@@ -128,40 +102,76 @@ class GlobalLineageGenerator:
             self._add_node(to_table, "db")
             self._add_edge(from_table, to_table, "FK")
 
-        # 2. Process logical lineage (dbt Model Dependencies)
+        # 2. Process Logical Lineage (dbt Model Dependencies)
         for model in self.dbt_models:
             model_name = model["name"]
-            self._add_node(model_name, "box")  # dbt model has highest priority
+            self._add_node(model_name, "box")  # dbt models are highest priority
 
             for dep in model.get("dependencies", []):
-                if (
-                    "." in dep
-                ):  # Heuristic for dbt sources (e.g., 'source_name.table_name')
+                if "." in dep:
                     self._add_node(dep, "source")
                     self._add_edge(dep, model_name)
-                else:  # Assume it's another dbt model
+                else:
                     self._add_node(dep, "box")
                     self._add_edge(dep, model_name)
 
-        # 3. Combine into Mermaid string
+        self._processed = True
+
+    def generate_mermaid_string(self) -> str:
+        """
+        Generates the complete Mermaid.js graph definition as a string.
+        (Maintains compatibility with MermaidWriter)
+        """
+        self._process_lineage()  # Ensure data is processed
+        logger.info("Generating Mermaid string output...")
+
         graph_lines = ["graph TD;"]
         node_definitions = []
-        for name, style in self.nodes.items():
+        # Sort nodes for consistent output
+        for name, data in sorted(self.nodes.items()):
+            style = data["style"]
             if style == "box":
-                node_definitions.append(
-                    f'    {name}["{name}"]'
-                )  # dbt model (rectangular box)
+                node_definitions.append(f'    {name}["{name}"]')
             elif style == "db":
-                node_definitions.append(
-                    f'    {name}[("{name}")]'
-                )  # DB table (rounded box)
+                node_definitions.append(f'    {name}[("{name}")]')
             elif style == "source":
-                node_definitions.append(
-                    f'    {name}(("{name}"))'
-                )  # dbt source (stadium shape)
+                node_definitions.append(f'    {name}(("{name}"))')
 
-        graph_lines.extend(sorted(node_definitions))
+        graph_lines.extend(node_definitions)
         graph_lines.append("")
-        graph_lines.extend(sorted(list(self.edges)))
+
+        # Sort edges for consistent output
+        for edge in sorted(self.edges, key=lambda x: x["id"]):
+            if edge["label"]:
+                graph_lines.append(
+                    f'    {edge["source"]} -- "{edge["label"]}" --> {edge["target"]}'
+                )
+            else:
+                graph_lines.append(f'    {edge["source"]} --> {edge["target"]}')
 
         return "\n".join(graph_lines)
+
+    def generate_graph_json(self) -> Dict[str, List[Dict[str, Any]]]:
+        """
+        Generates a structured JSON object for UI libraries like react-flow.
+        (New feature for UI consumption)
+        """
+        self._process_lineage()  # Ensure data is processed
+        logger.info("Generating JSON graph output for UI...")
+
+        # Format nodes for react-flow
+        formatted_nodes = []
+        for node in self.nodes.values():
+            formatted_nodes.append(
+                {
+                    "id": node["id"],
+                    "data": {"label": node["label"]},
+                    "type": node[
+                        "style"
+                    ],  # UI can use this for custom rendering
+                    # 'position' will be handled by the UI layout engine
+                }
+            )
+
+        # Edges are already in a compatible format
+        return {"nodes": formatted_nodes, "edges": self.edges}
