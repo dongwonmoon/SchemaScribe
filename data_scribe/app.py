@@ -330,6 +330,11 @@ def scan_dbt(
     dbt_project_dir: str = typer.Option(
         ..., "--project-dir", help="The path to the dbt project directory."
     ),
+    db_profile: str = typer.Option(
+        None,
+        "--db",
+        help="The database profile from config.yaml. Required for --drift mode.",
+    ),
     llm_profile: str = typer.Option(
         None,
         "--llm",
@@ -358,6 +363,11 @@ def scan_dbt(
         "--interactive",
         help="Run in interactive mode. Prompts user for each AI-generated change.",
     ),
+    drift: bool = typer.Option(
+        False,
+        "--drift",
+        help="Run in drift detection mode. Fails if docs are outdated. Requires --db.",
+    ),
 ):
     """
     Scans a dbt project, generates a data catalog, and manages dbt documentation.
@@ -373,15 +383,21 @@ def scan_dbt(
             "Error: --update, --check, and --interactive are mutually exclusive. Please choose one."
         )
         raise typer.Exit(code=1)
+    
+    if drift and not db_profile:
+        logger.error("Error: --drift mode requires --db to be specified.")
+        raise typer.Exit(code=1)
 
     DbtWorkflow(
         dbt_project_dir=dbt_project_dir,
+        db_profile=db_profile,
         llm_profile=llm_profile,
         config_path=config_path,
         output_profile=output_profile,
         update_yaml=update_yaml,
         check=check,
         interactive=interactive,
+        drift=drift
     ).run()
 
 

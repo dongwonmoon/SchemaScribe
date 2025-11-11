@@ -187,3 +187,34 @@ Placeholders:
 - `{model_name}`: The name of the dbt model.
 - `{raw_sql}`: The raw SQL code of the model for context.
 """
+
+DBT_DRIFT_CHECK_PROMPT = """
+You are a Data Governance Auditor.
+Your task is to compare the 'Existing Description' against the 'Current Data Profile'
+for the column '{node_name}.{column_name}' and determine if they conflict.
+
+-   'Existing Description': {existing_description}
+-   'Current Data Profile':
+{profile_context}
+
+Does the 'Existing Description' conflict with the 'Current Data Profile'?
+Answer with a single word: 'MATCH' or 'DRIFT'.
+
+-   Respond 'DRIFT' if the description is clearly wrong (e.g., description says 'Unique ID' but 'is_unique' is False).
+-   Respond 'DRIFT' if the description mentions specific categories (e.g., 'Status is A or B') but the 'distinct_count' is very high (e.g., 1000).
+-   Respond 'MATCH' if the description is still plausible, even if vague.
+-   Respond 'MATCH' if the profile is 'N/A' (profiling failed).
+
+Response (MATCH or DRIFT):
+"""
+
+"""
+Prompt template for checking documentation drift.
+This prompt asks the LLM to act as a data governance auditor.
+It compares the existing documentation against new data profile stats.
+Placeholders:
+- {node_name}: The name of the model or table.
+- {column_name}: The name of the column.
+- {existing_description}: The documentation currently in schema.yml.
+- {profile_context}: The fresh data profile stats from the database.
+"""

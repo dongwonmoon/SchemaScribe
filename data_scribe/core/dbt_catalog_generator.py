@@ -8,12 +8,13 @@ extracts model and column information, and uses an LLM to generate descriptions.
 from typing import Dict, Any
 from ruamel.yaml import YAML
 
-from data_scribe.core.interfaces import BaseLLMClient
+from data_scribe.core.interfaces import BaseLLMClient, BaseConnector
 from data_scribe.core.dbt_parser import DbtManifestParser
 from data_scribe.prompts import (
     DBT_MODEL_PROMPT,
     DBT_COLUMN_PROMPT,
     DBT_MODEL_LINEAGE_PROMPT,
+    DBT_DRIFT_CHECK_PROMPT
 )
 from data_scribe.utils.logger import get_logger
 
@@ -31,7 +32,7 @@ class DbtCatalogGenerator:
     tests, and PII status), and Mermaid.js lineage graphs.
     """
 
-    def __init__(self, llm_client: BaseLLMClient):
+    def __init__(self, llm_client: BaseLLMClient, db_connector: BaseConnector | None = None):
         """
         Initializes the DbtCatalogGenerator.
 
@@ -39,10 +40,20 @@ class DbtCatalogGenerator:
             llm_client: An initialized client for the desired LLM provider.
         """
         self.llm_client = llm_client
+        self.db_connector = db_connector
         self.yaml_parser = YAML()
         logger.info("DbtCatalogGenerator initialized.")
+        
+    def _format_profile_stats(self, profile_stats: Dict[str, Any]) -> str:
+        """(Helper) Formats profile stats for the prompt."""
+        context_lines = [
+            f"- Null Ratio: {profile_stats.get('null_ratio', 'N/A')}",
+            f"- Is Unique: {profile_stats.get('is_unique', 'N/A')}",
+            f"- Distinct Count: {profile_stats.get('distinct_count', 'N/A')}"
+        ]
+        return "\n".join(context_lines)
 
-    def generate_catalog(self, dbt_project_dir: str) -> Dict[str, Any]:
+    def generate_catalog(self, dbt_project_dir: str, run_drift_check: bool = False) -> Dict[str, Any]:
         """
         Orchestrates the generation of a dbt data catalog.
 
@@ -92,6 +103,7 @@ class DbtCatalogGenerator:
         for model in models:
             model_name = model["name"]
             raw_sql = model["raw_sql"]
+            table_name = model_name
             logger.info(f"Processing dbt model: '{model_name}'")
 
             # 1. Generate a high-level description for the dbt model.
@@ -116,39 +128,67 @@ class DbtCatalogGenerator:
             for column in model["columns"]:
                 col_name = column["name"]
                 col_type = column["type"]
+                existing_desc = column["description"]
+                
+                ai_data_dict = {}
+                drift_status = "N/A"
+                
+                if run_drift_check and self.db_connector and existing_desc:
+                    logger.info(f"  - Running drift check for: {model_name}.{col_name}")
+                    
+                    # 1. Get live profile stats
+                    profile_stats = self.db_connector.get_column_profile(table_name, col_name)
+                    profile_context = self._format_profile_stats(profile_stats)
 
-                col_prompt = DBT_COLUMN_PROMPT.format(
-                    model_name=model_name,
-                    col_name=col_name,
-                    col_type=col_type,
-                    raw_sql=raw_sql,
-                )
-                # The prompt asks the LLM to return a YAML snippet.
-                yaml_snippet_str = self.llm_client.get_description(
-                    col_prompt, max_tokens=250
-                )
-
-                # Try to parse the LLM's response as YAML to get structured data.
-                # If parsing fails, the raw response is used as the description,
-                # ensuring robustness against malformed AI outputs.
-                try:
-                    ai_data_dict = self.yaml_parser.load(yaml_snippet_str)
-                    if not isinstance(ai_data_dict, dict):
-                        raise ValueError(
-                            "AI did not return a valid YAML mapping."
-                        )
-                except Exception as e:
-                    logger.error(
-                        f"AI YAML snippet parsing failed for {model_name}.{col_name}: {e}"
+                    # 2. Ask AI to check for drift
+                    drift_prompt = DBT_DRIFT_CHECK_PROMPT.format(
+                        node_name=model_name,
+                        column_name=col_name,
+                        existing_description=existing_desc,
+                        profile_context=profile_context
                     )
-                    logger.debug(f"Failed snippet:\n{yaml_snippet_str}")
-                    ai_data_dict = {"description": yaml_snippet_str.strip()}
+                    ai_judgement = self.llm_client.get_description(drift_prompt, max_tokens=10).upper()
+                    
+                    if "DRIFT" in ai_judgement:
+                        drift_status = "DRIFT"
+                        logger.warning(f"  - DRIFT DETECTED for {model_name}.{col_name}!")
+                    else:
+                        drift_status = "MATCH"
+                        
+                if not existing_desc:
+                    col_prompt = DBT_COLUMN_PROMPT.format(
+                        model_name=model_name,
+                        col_name=col_name,
+                        col_type=col_type,
+                        raw_sql=raw_sql,
+                    )
+                    # The prompt asks the LLM to return a YAML snippet.
+                    yaml_snippet_str = self.llm_client.get_description(
+                        col_prompt, max_tokens=250
+                    )
+
+                    # Try to parse the LLM's response as YAML to get structured data.
+                    # If parsing fails, the raw response is used as the description,
+                    # ensuring robustness against malformed AI outputs.
+                    try:
+                        ai_data_dict = self.yaml_parser.load(yaml_snippet_str)
+                        if not isinstance(ai_data_dict, dict):
+                            raise ValueError(
+                                "AI did not return a valid YAML mapping."
+                            )
+                    except Exception as e:
+                        logger.error(
+                            f"AI YAML snippet parsing failed for {model_name}.{col_name}: {e}"
+                        )
+                        logger.debug(f"Failed snippet:\n{yaml_snippet_str}")
+                        ai_data_dict = {"description": yaml_snippet_str.strip()}
 
                 enriched_columns.append(
                     {
                         "name": col_name,
                         "type": col_type,
                         "ai_generated": ai_data_dict,
+                        "drift_status": drift_status
                     }
                 )
 

@@ -49,7 +49,7 @@ class DbtYamlWriter:
         self.yaml = YAML()
         self.yaml.preserve_quotes = True
         self.yaml.indent(mapping=2, sequence=4, offset=2)
-        if mode not in ["update", "check", "interactive"]:
+        if mode not in ["update", "check", "interactive", "drift"]:
             raise ValueError(f"Invalid mode: {mode}")
         self.mode = mode
 
@@ -236,6 +236,14 @@ class DbtYamlWriter:
                     None,
                 )
                 if ai_column:
+                    if self.mode == "drift" and column_config.get("description"):
+                        drift_status = ai_column.get("drift_status")
+                        if drift_status == "DRIFT":
+                            logger.warning(
+                                f"DRIFT DETECTED: Doc for '{model_name}.{column_name}' conflicts with live data."
+                            )
+                            file_changed = True # This flags the CI to fail
+                            
                     ai_data_dict = ai_column.get("ai_generated", {})
                     for key, ai_value in ai_data_dict.items():
                         if not column_config.get(key):
@@ -376,8 +384,9 @@ class DbtYamlWriter:
         """
         log_target = f"'{key}' on '{node_log_name}'"
 
-        if self.mode == "check":
-            logger.warning(f"CI CHECK: Missing {log_target}")
+        if self.mode in ["check", "drift"]:
+            log_prefix = "CI CHECK" if self.mode == "check" else "DRIFT CHECK"
+            logger.warning(f"{log_prefix}: Missing {log_target}")
             return True  # A change is needed
 
         elif self.mode == "interactive":

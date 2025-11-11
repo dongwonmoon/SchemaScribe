@@ -32,12 +32,14 @@ class DbtWorkflow:
     def __init__(
         self,
         dbt_project_dir: str,
+        db_profile: str | None,
         llm_profile: Optional[str],
         config_path: str,
         output_profile: Optional[str],
         update_yaml: bool,
         check: bool,
         interactive: bool,
+        drift: bool,
     ):
         """
         Initializes the DbtWorkflow with parameters from the CLI.
@@ -52,12 +54,14 @@ class DbtWorkflow:
             interactive: Flag to prompt the user for each AI-generated change.
         """
         self.dbt_project_dir = dbt_project_dir
+        self.db_profile_name = db_profile
         self.llm_profile_name = llm_profile
         self.config_path = config_path
         self.output_profile_name = output_profile
         self.update_yaml = update_yaml
         self.check = check
         self.interactive = interactive
+        self.drift = drift
         self.config = load_config_from_path(self.config_path)
 
     def run(self):
@@ -77,18 +81,40 @@ class DbtWorkflow:
             "default", {}
         ).get("llm")
         llm_client = init_llm(self.config, llm_profile_name)
+        
+        db_connector = None
+        if self.drift:
+            if not self.db_profile_name:
+                logger.error("Drift mode requires a --db profile")
+                raise typer.Exit(code=1)
+            
+            try:
+                logger.info(f"Initializing DB connection '{self.db_profile_name}' for drift check...")
+                db_params = self.config["db_connections"][self.db_profile_name]
+                db_type = db_params.pop("type")
+                db_connector = get_db_connector(db_type, db_params)
+            except Exception as e:
+                logger.error(f"Failed to connect to database for drift check: {e}")
+                raise typer.Exit(code=1) 
 
         # 2. Generate the dbt project catalog.
         logger.info(
             f"Generating dbt catalog for project: {self.dbt_project_dir}"
         )
-        catalog = DbtCatalogGenerator(llm_client).generate_catalog(
-            self.dbt_project_dir
+        catalog_gen = DbtCatalogGenerator(
+            llm_client=llm_client,
+            db_connector=db_connector
+        )
+        catalog = catalog_gen.generate_catalog(
+            dbt_project_dir=self.dbt_project_dir,
+            run_drift_check=self.drift
         )
 
         # Determine the action mode based on flags
         action_mode = None
-        if self.check:
+        if self.drift:
+            action_mode = "drift"
+        elif self.check:
             action_mode = "check"
         elif self.interactive:
             action_mode = "interactive"
@@ -103,21 +129,16 @@ class DbtWorkflow:
             )
             updates_needed = writer.update_yaml_files(catalog)
 
-            if action_mode == "check":
+            if action_mode in ["check", "drift"]:
                 if updates_needed:
-                    logger.error(
-                        "CI CHECK FAILED: dbt documentation is outdated or missing."
-                    )
-                    logger.error(
-                        "Run 'data-scribe dbt --project-dir ... --update' or --interactive to fix."
-                    )
+                    log_msg = "documentation is outdated" if self.check else "documentation drift was detected"
+                    logger.error(f"CI CHECK FAILED: {log_msg}.")
                     raise typer.Exit(code=1)
                 else:
-                    logger.info(
-                        "CI CHECK PASSED: All dbt documentation is up-to-date."
-                    )
+                    log_msg = "is up-to-date" if self.check else "has no drift"
+                    logger.info(f"CI CHECK PASSED: All dbt documentation {log_msg}.")
             else:
-                logger.info(f"dbt schema.yml {action_mode} process complete.")
+                 logger.info(f"dbt schema.yml {action_mode} process complete.")
 
         # The --output flag writes the catalog to an external file (e.g., Markdown).
         # This is skipped if --update is used.
