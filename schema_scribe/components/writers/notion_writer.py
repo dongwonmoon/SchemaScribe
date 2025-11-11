@@ -53,20 +53,28 @@ class NotionWriter(BaseWriter):
         api_token_param = self.params.get("api_token")
         token_to_use = None
 
-        logger.debug(f"NotionWriter._connect: raw api_token_param: {api_token_param}")
+        logger.debug(
+            f"NotionWriter._connect: raw api_token_param: {api_token_param}"
+        )
 
         if api_token_param:
-            if api_token_param.startswith("${") and api_token_param.endswith("}"):
+            if api_token_param.startswith("${") and api_token_param.endswith(
+                "}"
+            ):
                 env_var = api_token_param[2:-1]
                 token_to_use = os.getenv(env_var)
-                logger.debug(f"NotionWriter._connect: resolved from env '{env_var}': {token_to_use}")
+                logger.debug(
+                    f"NotionWriter._connect: resolved from env '{env_var}': {token_to_use}"
+                )
                 if not token_to_use:
                     raise ConfigError(
                         f"Environment variable '{env_var}' is required but not set."
                     )
             else:
                 token_to_use = api_token_param
-                logger.debug(f"NotionWriter._connect: using direct token: {token_to_use}")
+                logger.debug(
+                    f"NotionWriter._connect: using direct token: {token_to_use}"
+                )
 
         if not token_to_use:
             raise ConfigError(
@@ -137,7 +145,7 @@ class NotionWriter(BaseWriter):
         return {
             "object": "block",
             "type": "heading_2",
-            "heading_2": {"rich_text": [{"text": {"content": text}}]}
+            "heading_2": {"rich_text": [{"text": {"content": text}}]},
         }
 
     def _H3(self, text: str) -> Dict[str, Any]:
@@ -145,7 +153,7 @@ class NotionWriter(BaseWriter):
         return {
             "object": "block",
             "type": "heading_3",
-            "heading_3": {"rich_text": [{"text": {"content": text}}]}
+            "heading_3": {"rich_text": [{"text": {"content": text}}]},
         }
 
     def _Para(self, text: str) -> Dict[str, Any]:
@@ -153,7 +161,7 @@ class NotionWriter(BaseWriter):
         return {
             "object": "block",
             "type": "paragraph",
-            "paragraph": {"rich_text": [{"text": {"content": text}}]}
+            "paragraph": {"rich_text": [{"text": {"content": text}}]},
         }
 
     def _Code(self, text: str, lang: str = "sql") -> Dict[str, Any]:
@@ -176,8 +184,7 @@ class NotionWriter(BaseWriter):
         return code.replace("```mermaid", "").replace("```", "").strip()
 
     def _generate_notion_blocks(
-        self,
-        catalog_data: Dict[str, Any]
+        self, catalog_data: Dict[str, Any]
     ) -> List[Dict[str, Any]]:
         """
         Dynamically generates Notion blocks by detecting the catalog structure.
@@ -215,9 +222,7 @@ class NotionWriter(BaseWriter):
             return [self._Para("Unknown catalog structure provided.")]
 
     def _create_column_table(
-        self,
-        columns: List[Dict[str, Any]],
-        is_dbt: bool = False
+        self, columns: List[Dict[str, Any]], is_dbt: bool = False
     ) -> Dict[str, Any]:
         """
         Creates a Notion Table block to display column details.
@@ -287,8 +292,7 @@ class NotionWriter(BaseWriter):
         return "\n".join(code)
 
     def _generate_db_blocks(
-        self,
-        catalog_data: Dict[str, Any]
+        self, catalog_data: Dict[str, Any]
     ) -> List[Dict[str, Any]]:
         """
         Generates a list of Notion blocks for a traditional database catalog.
@@ -334,8 +338,7 @@ class NotionWriter(BaseWriter):
         return blocks
 
     def _generate_dbt_blocks(
-        self,
-        catalog_data: Dict[str, Any]
+        self, catalog_data: Dict[str, Any]
     ) -> List[Dict[str, Any]]:
         """
         Generates a list of Notion blocks for a dbt project catalog.

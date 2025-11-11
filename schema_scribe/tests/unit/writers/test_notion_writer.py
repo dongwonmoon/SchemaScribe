@@ -121,6 +121,7 @@ def test_notion_writer_success(mock_notion_client, mock_db_catalog_data):
     )
     assert table_h2 is not None
 
+
 @patch.dict(os.environ, {"NOTION_TEST_KEY": "env_key_value"})
 @patch("schema_scribe.components.writers.notion_writer.Client")
 def test_notion_writer_resolves_env_var(
@@ -134,7 +135,7 @@ def test_notion_writer_resolves_env_var(
     the Notion client.
     """
     mock_notion_client.return_value = MagicMock()  # Basic mock
-    
+
     writer = NotionWriter()
     kwargs = {
         "api_token": "${NOTION_TEST_KEY}",  # Reference the env var
@@ -143,7 +144,6 @@ def test_notion_writer_resolves_env_var(
 
     writer.write(mock_db_catalog_data, **kwargs)
 
-    
     # Assert client was initialized with the *resolved* key
     mock_notion_client.assert_called_once()
     call_args, call_kwargs = mock_notion_client.call_args

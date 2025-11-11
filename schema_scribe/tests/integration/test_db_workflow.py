@@ -11,7 +11,11 @@ from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 from schema_scribe.workflows.db_workflow import DbWorkflow
-from schema_scribe.core.interfaces import BaseConnector, BaseLLMClient, BaseWriter
+from schema_scribe.core.interfaces import (
+    BaseConnector,
+    BaseLLMClient,
+    BaseWriter,
+)
 
 
 @pytest.fixture
@@ -27,33 +31,97 @@ def mock_db_connector(sqlite_db: str):
         {"name": "orders", "comment": None},
     ]
     mock_connector.get_views.return_value = [
-        {"name": "user_orders", "definition": "SELECT * FROM users JOIN orders ON users.id = orders.user_id"}
+        {
+            "name": "user_orders",
+            "definition": "SELECT * FROM users JOIN orders ON users.id = orders.user_id",
+        }
     ]
     mock_connector.get_columns.side_effect = [
         # users table columns
         [
-            {"name": "id", "type": "INTEGER", "is_nullable": False, "is_pk": True, "comment": None},
-            {"name": "email", "type": "TEXT", "is_nullable": False, "is_pk": False, "comment": None},
+            {
+                "name": "id",
+                "type": "INTEGER",
+                "is_nullable": False,
+                "is_pk": True,
+                "comment": None,
+            },
+            {
+                "name": "email",
+                "type": "TEXT",
+                "is_nullable": False,
+                "is_pk": False,
+                "comment": None,
+            },
         ],
         # products table columns
         [
-            {"name": "id", "type": "INTEGER", "is_nullable": False, "is_pk": True, "comment": None},
-            {"name": "name", "type": "TEXT", "is_nullable": False, "is_pk": False, "comment": None},
-            {"name": "price", "type": "REAL", "is_nullable": False, "is_pk": False, "comment": None},
+            {
+                "name": "id",
+                "type": "INTEGER",
+                "is_nullable": False,
+                "is_pk": True,
+                "comment": None,
+            },
+            {
+                "name": "name",
+                "type": "TEXT",
+                "is_nullable": False,
+                "is_pk": False,
+                "comment": None,
+            },
+            {
+                "name": "price",
+                "type": "REAL",
+                "is_nullable": False,
+                "is_pk": False,
+                "comment": None,
+            },
         ],
         # orders table columns
         [
-            {"name": "id", "type": "INTEGER", "is_nullable": False, "is_pk": True, "comment": None},
-            {"name": "user_id", "type": "INTEGER", "is_nullable": False, "is_pk": False, "comment": None},
-            {"name": "product_id", "type": "INTEGER", "is_nullable": False, "is_pk": False, "comment": None},
+            {
+                "name": "id",
+                "type": "INTEGER",
+                "is_nullable": False,
+                "is_pk": True,
+                "comment": None,
+            },
+            {
+                "name": "user_id",
+                "type": "INTEGER",
+                "is_nullable": False,
+                "is_pk": False,
+                "comment": None,
+            },
+            {
+                "name": "product_id",
+                "type": "INTEGER",
+                "is_nullable": False,
+                "is_pk": False,
+                "comment": None,
+            },
         ],
     ]
     mock_connector.get_foreign_keys.return_value = [
-        {"source_table": "orders", "source_column": "user_id", "target_table": "users", "target_column": "id"},
-        {"source_table": "orders", "source_column": "product_id", "target_table": "products", "target_column": "id"},
+        {
+            "source_table": "orders",
+            "source_column": "user_id",
+            "target_table": "users",
+            "target_column": "id",
+        },
+        {
+            "source_table": "orders",
+            "source_column": "product_id",
+            "target_table": "products",
+            "target_column": "id",
+        },
     ]
     mock_connector.get_column_profile.return_value = {
-        "total_count": 0, "null_count": 0, "distinct_count": 0, "is_unique": True
+        "total_count": 0,
+        "null_count": 0,
+        "distinct_count": 0,
+        "is_unique": True,
     }
     mock_connector.close.return_value = None
     return mock_connector
@@ -66,7 +134,9 @@ def mock_llm_client():
     """
     mock_client = MagicMock(spec=BaseLLMClient)
     mock_client.llm_profile_name = "test_llm"
-    mock_client.get_description.return_value = "This is an AI-generated description."
+    mock_client.get_description.return_value = (
+        "This is an AI-generated description."
+    )
     return mock_client
 
 
@@ -113,9 +183,11 @@ def test_db_workflow_end_to_end(
     # 1. Verify components were called
     mock_db_connector.get_tables.assert_called_once()
     mock_db_connector.get_views.assert_called_once()
-    assert mock_db_connector.get_columns.call_count == 3 # Only called for tables
+    assert (
+        mock_db_connector.get_columns.call_count == 3
+    )  # Only called for tables
     mock_db_connector.get_foreign_keys.assert_called_once()
-    mock_llm_client.get_description.assert_called() # Called for tables, views, columns
+    mock_llm_client.get_description.assert_called()  # Called for tables, views, columns
     mock_writer.write.assert_called_once()
     mock_db_connector.close.assert_called_once()
 
@@ -129,7 +201,7 @@ def test_db_workflow_end_to_end(
 
     assert captured_writer_params == {
         "db_profile_name": "test_db",
-        "db_connector": mock_db_connector, # Added mock_db_connector to expected params
+        "db_connector": mock_db_connector,  # Added mock_db_connector to expected params
         "output_filename": str(output_md_path),
     }
 
@@ -182,7 +254,11 @@ def test_db_workflow_end_to_end_with_profiling(
     for call in calls:
         prompt_text = call[0][0]
         # Make the search more flexible
-        if "Table: {'name': 'users', 'comment': None}" in prompt_text and "Column: id" in prompt_text and "Data Profile Context:" in prompt_text:
+        if (
+            "Table: {'name': 'users', 'comment': None}" in prompt_text
+            and "Column: id" in prompt_text
+            and "Data Profile Context:" in prompt_text
+        ):
             users_id_prompt = prompt_text
             break
 

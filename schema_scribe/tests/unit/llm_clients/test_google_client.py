@@ -51,5 +51,5 @@ def test_google_client_get_description(mock_genai, mocker):
     # The actual call includes generation_config
     mock_model_instance.generate_content.assert_called_once_with(
         "test prompt",
-        generation_config=mock_genai.GenerationConfig(max_output_tokens=150)
+        generation_config=mock_genai.GenerationConfig(max_output_tokens=150),
     )

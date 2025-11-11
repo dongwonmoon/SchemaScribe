@@ -16,7 +16,11 @@ from unittest.mock import MagicMock, patch
 
 from schema_scribe.workflows.dbt_workflow import DbtWorkflow
 from schema_scribe.core.exceptions import CIError
-from schema_scribe.core.interfaces import BaseConnector, BaseLLMClient, BaseWriter
+from schema_scribe.core.interfaces import (
+    BaseConnector,
+    BaseLLMClient,
+    BaseWriter,
+)
 
 # A minimal manifest.json structure needed for the tests
 MINIMAL_MANIFEST = {
@@ -129,7 +133,9 @@ def mock_llm_client():
     """
     mock_client = MagicMock(spec=BaseLLMClient)
     mock_client.llm_profile_name = "test_llm"
-    mock_client.get_description.return_value = "This is an AI-generated description."
+    mock_client.get_description.return_value = (
+        "This is an AI-generated description."
+    )
     return mock_client
 
 
@@ -221,7 +227,9 @@ def test_dbt_workflow_update(
                 {"name": "first_name", "description": "", "type": "TEXT"},
             ],
             "path": "customers.sql",
-            "original_file_path": os.path.join(dbt_project, "models", "customers.sql"),
+            "original_file_path": os.path.join(
+                dbt_project, "models", "customers.sql"
+            ),
         }
     ]
     mock_parser_constructor.return_value = mock_parser_instance
@@ -282,7 +290,9 @@ def test_dbt_workflow_check_fails(
                 {"name": "first_name", "description": "", "type": "TEXT"},
             ],
             "path": "customers.sql",
-            "original_file_path": os.path.join(dbt_project, "models", "customers.sql"),
+            "original_file_path": os.path.join(
+                dbt_project, "models", "customers.sql"
+            ),
         }
     ]
     mock_parser_constructor.return_value = mock_parser_instance
@@ -327,7 +337,9 @@ def test_dbt_workflow_check_succeeds(
                 {"name": "first_name", "description": "", "type": "TEXT"},
             ],
             "path": "customers.sql",
-            "original_file_path": os.path.join(dbt_project, "models", "customers.sql"),
+            "original_file_path": os.path.join(
+                dbt_project, "models", "customers.sql"
+            ),
         }
     ]
     mock_parser_constructor.return_value = mock_parser_instance

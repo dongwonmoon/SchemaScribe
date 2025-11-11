@@ -36,7 +36,7 @@ def test_lineage_workflow_e2e(
             "target_column": "id",
         }
     ]
-    mock_db_connector.db_profile_name = "test_db" # Add this for logging
+    mock_db_connector.db_profile_name = "test_db"  # Add this for logging
     mock_db_connector.close.return_value = None
 
     # --- Mock dbt Parser (Logical Lineage) ---
